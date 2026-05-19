@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase client ────────────────────────────────────────────
 const SUPABASE_URL = "https://ouerpsdkpzsojjqzfezq.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91ZXJwc2RrcHpzb2pqcXpmZXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMDU2OTAsImV4cCI6MjA5NDY4MTY5MH0.AoYkAJFzAyvmgSCzdHiBTI7Qw4c3d53Yga_-CyM8m9c";
+const SUPABASE_KEY = "YOUR_LEGACY_ANON_KEY_HERE";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── Season helper (June–May rule) ─────────────────────────────
@@ -850,12 +850,15 @@ function RegDetail({reg, onClose, onToggle}) {
     sb.storage.from("player-photos").createSignedUrl(path, 3600)
       .then(({data})=>{ if (data?.signedUrl) setPhotoUrl(data.signedUrl); });
   },[d.photo_url]);
+
+  const Row = ({label,value}) => (
     <div style={{display:"flex", gap:8, marginBottom:9, fontFamily:"'DM Sans',sans-serif"}}>
       <div style={{fontSize:11, color:C.muted, minWidth:120, flexShrink:0,
         textTransform:"uppercase", letterSpacing:"0.06em", paddingTop:1}}>{label}</div>
       <div style={{fontSize:13, color:C.offwhite}}>{value||<span style={{color:C.muted}}>—</span>}</div>
     </div>
   );
+
   return (
     <Modal title={`${d.first_name} ${d.surname}`} onClose={onClose}>
       <div style={{marginBottom:14}}>
