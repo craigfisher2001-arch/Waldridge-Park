@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
- 
+
 // ── Supabase client ────────────────────────────────────────────
 const SUPABASE_URL = "https://ouerpsdkpzsojjqzfezq.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91ZXJwc2RrcHpzb2pqcXpmZXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMDU2OTAsImV4cCI6MjA5NDY4MTY5MH0.AoYkAJFzAyvmgSCzdHiBTI7Qw4c3d53Yga_-CyM8m9c";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
- 
+
 // ── Season helper (June–May rule) ─────────────────────────────
 function currentSeason() {
   const now = new Date();
@@ -14,7 +14,7 @@ function currentSeason() {
   const start = month >= 5 ? year : year - 1;
   return `${start}/${String(start + 1).slice(2)}`;
 }
- 
+
 // ── Date formatter (British format) ───────────────────────────
 function fmtDate(str) {
   if (!str) return "—";
@@ -22,7 +22,7 @@ function fmtDate(str) {
   if (isNaN(d)) return str;
   return d.toLocaleDateString("en-GB", { day:"2-digit", month:"2-digit", year:"numeric" }).replace(/\//g,"-");
 }
- 
+
 // ── Static reference data ──────────────────────────────────────
 const TEAMS = ["Superstars","Fenwick","Ingram","Bowmont","Hawkhill","Portland",
   "Glanton","Longburn","Hauxley","Grasmere","Aberwick","Lions","Dunstan",
@@ -32,7 +32,7 @@ const AGE_GROUPS = ["U7s","U8s","U9s","U10s","U11s","U12s","U13s","U14s",
 const GENDERS = ["Male","Female","Prefer not to say"];
 const NATIONALITIES = ["British","English","Scottish","Welsh","Irish","Other"];
 const KIT_SIZES = ["XS","S","SY","Y","S-M","L","XL","XXL"];
- 
+
 // #14 — brand labels added
 const EQUIPMENT_ITEMS = [
   { id:"train_ball",   name:"Training Balls", brand:"Mitre",   sizes:["Size 3","Size 4","Size 5"], personalisation:null },
@@ -45,7 +45,7 @@ const EQUIPMENT_ITEMS = [
   { id:"nets",         name:"Nets",           brand:"Various", sizes:null, personalisation:null, u13above:true },
   { id:"bibs",         name:"Bibs",           brand:"Various", sizes:["S","M","L","XL"], personalisation:null },
 ];
- 
+
 const KIT_ITEMS = [
   { id:"home_shirt",   name:"Home Shirt",    brand:"Pendle", personalisation:"squad_required" },
   { id:"home_shorts",  name:"Home Shorts",   brand:"Pendle", personalisation:null },
@@ -57,7 +57,7 @@ const KIT_ITEMS = [
   { id:"coach_jumper", name:"Coach Jumper",  brand:"Pendle", personalisation:"initials_optional" },
   { id:"coach_tshirt", name:"Coach T-Shirt", brand:"Pendle", personalisation:"initials_optional" },
 ];
- 
+
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
   navy:"#0a1628", blue:"#1a3a8f", royal:"#1e4fd8", bright:"#2563eb",
@@ -65,10 +65,12 @@ const C = {
   border:"#1e3a7a", success:"#16a34a", warn:"#d97706", danger:"#dc2626",
   card:"#0f2044", input:"#0d1e3d",
 };
- 
+
 const inp = { width:"100%", background:C.input, border:`1px solid ${C.border}`,
   borderRadius:8, padding:"11px 14px", color:C.white, fontSize:15,
   fontFamily:"'DM Sans',sans-serif", outline:"none", boxSizing:"border-box" };
+// Date inputs need color-scheme:dark so the calendar icon renders white
+const dateInp = { ...inp, colorScheme:"dark", overflow:"hidden" };
 const sel = { ...inp, appearance:"none" };
 const btn = { background:`linear-gradient(135deg,${C.royal},${C.bright})`, color:C.white,
   border:"none", borderRadius:10, padding:"13px 24px", fontSize:15, fontWeight:700,
@@ -81,7 +83,7 @@ const lbl = { display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.08e
 const secHead = { margin:"0 0 14px", fontSize:12, letterSpacing:"0.08em",
   textTransform:"uppercase", color:C.silver, fontFamily:"'DM Sans',sans-serif", fontWeight:700,
   borderBottom:`1px solid ${C.border}`, paddingBottom:9 };
- 
+
 // ── Shared components ──────────────────────────────────────────
 const Bdg = ({s:status}) => (
   <span style={{ display:"inline-block", padding:"3px 9px", borderRadius:20, fontSize:10,
@@ -91,7 +93,7 @@ const Bdg = ({s:status}) => (
     color:status==="pending"?C.warn:C.success,
     border:`1px solid ${status==="pending"?C.warn:C.success}` }}>{status}</span>
 );
- 
+
 // #1 — Real club badge
 function Crest({size=48, glow=false}) {
   return (
@@ -108,11 +110,11 @@ function Crest({size=48, glow=false}) {
     />
   );
 }
- 
+
 function F({label, children, mb=16}) {
   return <div style={{marginBottom:mb}}><label style={lbl}>{label}</label>{children}</div>;
 }
- 
+
 function Section({title, children}) {
   return (
     <div style={{...card, marginBottom:14}}>
@@ -121,7 +123,7 @@ function Section({title, children}) {
     </div>
   );
 }
- 
+
 function Stepper({value, onChange, min=1, max=99}) {
   return (
     <div style={{display:"flex", alignItems:"center", border:`1px solid ${C.border}`,
@@ -137,35 +139,38 @@ function Stepper({value, onChange, min=1, max=99}) {
     </div>
   );
 }
- 
-// #21 — Close button more visible on mobile
+
+// #21 — Close button at bottom of modal content so it's always reachable on mobile
 function Modal({onClose, title, children}) {
   return (
     <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.78)", display:"flex",
       alignItems:"flex-end", justifyContent:"center", zIndex:200}} onClick={onClose}>
-      <div style={{...card, width:"100%", maxWidth:600, maxHeight:"90vh", overflowY:"auto",
+      <div style={{...card, width:"100%", maxWidth:600, maxHeight:"92vh", overflowY:"auto",
         borderRadius:"18px 18px 0 0", padding:0}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"16px 18px 12px", borderBottom:`1px solid ${C.border}`, position:"sticky",
-          top:0, background:C.card, borderRadius:"18px 18px 0 0", zIndex:1}}>
+        <div style={{padding:"16px 18px 12px", borderBottom:`1px solid ${C.border}`,
+          position:"sticky", top:0, background:C.card, borderRadius:"18px 18px 0 0", zIndex:1}}>
           <div style={{fontSize:17, fontWeight:700, fontFamily:"'Crimson Pro',Georgia,serif"}}>{title}</div>
-          <button onClick={onClose} style={{background:C.royal, border:"none",
-            color:C.white, fontSize:18, cursor:"pointer", lineHeight:1, padding:"6px 12px",
-            borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontWeight:700}}>✕ Close</button>
         </div>
-        <div style={{padding:18}}>{children}</div>
+        <div style={{padding:18}}>
+          {children}
+          {/* Close button at bottom — always visible without scrolling up */}
+          <button onClick={onClose} style={{...btn, width:"100%", marginTop:18,
+            background:`linear-gradient(135deg,${C.muted},#475569)`}}>
+            ✕ Close
+          </button>
+        </div>
       </div>
     </div>
   );
 }
- 
+
 function ErrBanner({msg}) {
   if (!msg) return null;
   return <div style={{background:"rgba(220,38,38,0.15)", border:`1px solid ${C.danger}`,
     borderRadius:8, padding:"10px 14px", marginBottom:14, fontSize:13,
     color:C.danger, fontFamily:"'DM Sans',sans-serif"}}>{msg}</div>;
 }
- 
+
 function Spinner() {
   return <div style={{display:"flex", alignItems:"center", justifyContent:"center", padding:40}}>
     <div style={{width:32, height:32, border:`3px solid ${C.border}`,
@@ -174,7 +179,7 @@ function Spinner() {
     <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
   </div>;
 }
- 
+
 // ── Layout ─────────────────────────────────────────────────────
 function Topbar({user, onLogout, active}) {
   const titles = {dashboard:"Home", registration:"New Registration", kitorder:"Kit Order", secretary:"Secretary"};
@@ -206,7 +211,7 @@ function Topbar({user, onLogout, active}) {
     </div>
   );
 }
- 
+
 function BottomNav({active, setActive, isSecretary}) {
   const tabs = [
     {id:"dashboard", icon:"⊞", label:"Home"},
@@ -230,14 +235,14 @@ function BottomNav({active, setActive, isSecretary}) {
     </div>
   );
 }
- 
+
 // ── Login ──────────────────────────────────────────────────────
 function LoginScreen({onLogin}) {
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
- 
+
   const doLogin = async () => {
     setErr(""); setLoading(true);
     const {data, error} = await sb.auth.signInWithPassword({email, password:pw});
@@ -251,7 +256,7 @@ function LoginScreen({onLogin}) {
       isSecretary:profile.is_secretary, teams:profile.teams||[]});
     setLoading(false);
   };
- 
+
   return (
     <div style={{minHeight:"100vh", background:`linear-gradient(160deg,${C.navy} 0%,#060e1c 100%)`,
       display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
@@ -286,11 +291,11 @@ function LoginScreen({onLogin}) {
     </div>
   );
 }
- 
+
 // ── Dashboard ──────────────────────────────────────────────────
 function DashboardView({user, setActive}) {
   const [stats, setStats] = useState({pendingRegs:0, pendingOrders:0});
- 
+
   useEffect(()=>{
     async function load() {
       if (user.isSecretary) {
@@ -309,15 +314,15 @@ function DashboardView({user, setActive}) {
     }
     load();
   },[user]);
- 
-  // #4 — stat tiles navigate to relevant view
+
+  // #4 — stat tiles navigate to my submissions view
   const statTiles = [
-    {label:"Pending Regs",    value:stats.pendingRegs,    color:C.warn,    action:()=>setActive("secretary")},
-    {label:"Pending Orders",  value:stats.pendingOrders,  color:C.royal,   action:()=>setActive("secretary")},
+    {label:"Pending Regs",    value:stats.pendingRegs,    color:C.warn,    action:()=>setActive("mysubmissions")},
+    {label:"Pending Orders",  value:stats.pendingOrders,  color:C.royal,   action:()=>setActive("mysubmissions")},
     {label:"Your Teams",      value:user.teams.length,    color:C.success, action:null},
-    {label:"Season",          value:currentSeason(),      color:C.silver,  action:null}, // #2
+    {label:"Season",          value:currentSeason(),      color:C.silver,  action:null},
   ];
- 
+
   return (
     <div style={{padding:18}}>
       <h2 style={{margin:"0 0 4px", fontSize:24, fontFamily:"'Crimson Pro',Georgia,serif"}}>
@@ -363,14 +368,14 @@ function DashboardView({user, setActive}) {
     </div>
   );
 }
- 
+
 // ── Registration form ──────────────────────────────────────────
 const EMPTY_REG = (teams) => ({
   team:teams[0]||"", ageGroup:"", firstName:"", surname:"", address:"",
   postcode:"", dob:"", gender:"", nationality:"", parentName:"",
   parentDob:"", parentEmail:"", parentPhone:"", idSeen:false, photo:null,
 });
- 
+
 function RegistrationForm({user}) {
   const [form, setForm] = useState(()=>EMPTY_REG(user.teams));
   const [preview, setPreview] = useState(null);
@@ -380,16 +385,16 @@ function RegistrationForm({user}) {
   const [confirm, setConfirm] = useState(false); // #9
   const fileRef = useRef();
   const teamOpts = user.isSecretary ? TEAMS : user.teams;
- 
+
   const set = useCallback((k,v) => setForm(f=>({...f,[k]:v})), []);
- 
+
   // #8 — no capture attribute so user gets camera/file choice
   const handlePhoto = e => {
     const file = e.target.files[0]; if (!file) return;
     set("photo", file);
     const r = new FileReader(); r.onload = ev => setPreview(ev.target.result); r.readAsDataURL(file);
   };
- 
+
   const doSubmit = async () => {
     setConfirm(false);
     setErr(""); setLoading(true);
@@ -417,7 +422,7 @@ function RegistrationForm({user}) {
     } catch(e) { setErr(e.message||"Submission failed."); }
     setLoading(false);
   };
- 
+
   if (done) return (
     <div style={{padding:40, display:"flex", flexDirection:"column", alignItems:"center",
       justifyContent:"center", minHeight:400, textAlign:"center"}}>
@@ -433,14 +438,14 @@ function RegistrationForm({user}) {
       </button>
     </div>
   );
- 
+
   return (
     <div style={{padding:18}}>
       <h2 style={{margin:"0 0 4px", fontSize:22, fontFamily:"'Crimson Pro',Georgia,serif"}}>New Registration</h2>
       <p style={{margin:"0 0 20px", color:C.muted, fontFamily:"'DM Sans',sans-serif", fontSize:13}}>
         Photo and ID verification required.</p>
       <ErrBanner msg={err}/>
- 
+
       <Section title="Player Details">
         <F label="Team">
           <select style={sel} value={form.team} onChange={e=>set("team",e.target.value)}>
@@ -463,9 +468,9 @@ function RegistrationForm({user}) {
           <F label="Postcode">
             <input style={inp} value={form.postcode} onChange={e=>set("postcode",e.target.value.toUpperCase())}/>
           </F>
-          {/* #5 #10 — date input full width, no overflow */}
+          {/* #5 #10 — date input full width, white calendar icon */}
           <F label="Date of Birth">
-            <input style={{...inp, width:"100%", boxSizing:"border-box"}} type="date"
+            <input style={dateInp} type="date"
               value={form.dob} onChange={e=>set("dob",e.target.value)}/>
           </F>
         </div>
@@ -483,18 +488,18 @@ function RegistrationForm({user}) {
           </F>
         </div>
       </Section>
- 
+
       <Section title="Parent / Guardian">
         <F label="Full Name"><input style={inp} value={form.parentName} onChange={e=>set("parentName",e.target.value)}/></F>
-        {/* #7 — date input full width */}
+        {/* #7 — date input full width, white calendar icon */}
         <F label="Date of Birth">
-          <input style={{...inp, width:"100%", boxSizing:"border-box"}} type="date"
+          <input style={dateInp} type="date"
             value={form.parentDob} onChange={e=>set("parentDob",e.target.value)}/>
         </F>
         <F label="Email Address"><input style={inp} type="email" value={form.parentEmail} onChange={e=>set("parentEmail",e.target.value)}/></F>
         <F label="Contact Number"><input style={inp} type="tel" value={form.parentPhone} onChange={e=>set("parentPhone",e.target.value)}/></F>
       </Section>
- 
+
       <Section title="Photo & Identity">
         <F label="Player Headshot">
           {/* #8 — no capture attr, gives camera/file choice on iOS */}
@@ -522,7 +527,7 @@ function RegistrationForm({user}) {
           </div>
         </label>
       </Section>
- 
+
       {/* #9 — confirmation dialog */}
       {confirm && (
         <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.78)", display:"flex",
@@ -544,7 +549,7 @@ function RegistrationForm({user}) {
           </div>
         </div>
       )}
- 
+
       <button style={{...btn, width:"100%", padding:15, fontSize:16, opacity:loading?0.6:1}}
         onClick={()=>setConfirm(true)} disabled={loading}>
         {loading?"Submitting…":"Submit Registration"}
@@ -552,7 +557,7 @@ function RegistrationForm({user}) {
     </div>
   );
 }
- 
+
 // ── Kit order form ─────────────────────────────────────────────
 function KitOrderForm({user}) {
   // #11 — kit tab first
@@ -568,9 +573,9 @@ function KitOrderForm({user}) {
   const [mSize, setMSize] = useState("");
   const [mQty, setMQty] = useState(1);
   const teamOpts = user.isSecretary ? TEAMS : user.teams;
- 
+
   const openModal = (type, item) => { setModal({type, item}); setMSize(""); setMQty(1); };
- 
+
   const confirmAdd = () => {
     const item = modal.item;
     // #13 — GK shirt defaults squad to "1"
@@ -585,24 +590,24 @@ function KitOrderForm({user}) {
     }]);
     setModal(null);
   };
- 
+
   const removeItem = id => setItems(prev=>prev.filter(i=>i.id!==id));
- 
+
   const updateQty = (id, n) => setItems(prev=>prev.map(oi=>{
     if (oi.id!==id) return oi;
     const p = [...oi.personalisations];
     const next = Array(n).fill(null).map((_,i)=>p[i]||{squad:"",initials:""});
     return {...oi, qty:n, personalisations:next};
   }));
- 
+
   const updateP = (id, idx, field, val) => setItems(prev=>prev.map(oi=>{
     if (oi.id!==id) return oi;
     const p = [...oi.personalisations]; p[idx] = {...p[idx],[field]:val};
     return {...oi, personalisations:p};
   }));
- 
+
   const needsP = p => p==="squad_required"||p==="optional"||p==="initials_optional";
- 
+
   // #12 — validate squad numbers are present and unique for shirts
   const validateSquads = () => {
     for (const oi of items) {
@@ -619,7 +624,7 @@ function KitOrderForm({user}) {
     }
     return null;
   };
- 
+
   const submit = async () => {
     // #16 — age group mandatory
     if (!ageGroup) { setErr("Please select an age group before submitting."); return; }
@@ -640,7 +645,7 @@ function KitOrderForm({user}) {
     } catch(e) { setErr(e.message||"Submission failed."); }
     setLoading(false);
   };
- 
+
   if (done) return (
     <div style={{padding:40, display:"flex", flexDirection:"column", alignItems:"center",
       justifyContent:"center", minHeight:400, textAlign:"center"}}>
@@ -653,13 +658,13 @@ function KitOrderForm({user}) {
       <button style={{...btn, marginTop:22}} onClick={()=>{setDone(false);setItems([]);setSpecial("");}}>New Order</button>
     </div>
   );
- 
+
   return (
     <div style={{padding:18}}>
       <h2 style={{margin:"0 0 4px", fontSize:22, fontFamily:"'Crimson Pro',Georgia,serif"}}>Kit Order</h2>
       <p style={{margin:"0 0 12px", color:C.muted, fontFamily:"'DM Sans',sans-serif", fontSize:13}}>
         Select items, adjust quantities and add personalisation.</p>
- 
+
       {/* #17 — policy info box */}
       <div style={{background:"rgba(30,79,216,0.12)", border:`1px solid ${C.royal}`, borderRadius:10,
         padding:"12px 14px", marginBottom:14, fontFamily:"'DM Sans',sans-serif", fontSize:12, color:C.silver, lineHeight:1.6}}>
@@ -670,9 +675,9 @@ function KitOrderForm({user}) {
         <a href="https://www.pendlesportswear.co.uk/size-guides/" target="_blank" rel="noreferrer"
           style={{color:C.bright}}>Pendle size guide</a>.
       </div>
- 
+
       <ErrBanner msg={err}/>
- 
+
       <div style={{...card, marginBottom:14}}>
         <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10}}>
           <F label="Team" mb={0}>
@@ -692,7 +697,7 @@ function KitOrderForm({user}) {
           <input style={{...inp, color:C.muted}} value={user.name} readOnly/>
         </F>
       </div>
- 
+
       <div style={{display:"flex", gap:4, marginBottom:12, background:C.card,
         borderRadius:10, padding:4, border:`1px solid ${C.border}`}}>
         {/* #11 — kit first */}
@@ -706,7 +711,7 @@ function KitOrderForm({user}) {
           </button>
         ))}
       </div>
- 
+
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14}}>
         {(tab==="equipment"?EQUIPMENT_ITEMS:KIT_ITEMS).map(item=>(
           <button key={item.id} onClick={()=>openModal(tab,item)}
@@ -729,7 +734,7 @@ function KitOrderForm({user}) {
           </button>
         ))}
       </div>
- 
+
       {items.length>0&&(
         <div style={{...card, marginBottom:14}}>
           <div style={secHead}>Order · {items.length} line{items.length!==1?"s":""}</div>
@@ -776,36 +781,32 @@ function KitOrderForm({user}) {
           ))}
         </div>
       )}
- 
+
       <div style={{...card, marginBottom:22}}>
         <F label="Special Requests / Notes" mb={0}>
           <textarea style={{...inp, minHeight:68, resize:"vertical"}} value={special}
             onChange={e=>setSpecial(e.target.value)} placeholder="Any additional information..."/>
         </F>
       </div>
- 
+
       <button style={{...btn, width:"100%", padding:15, fontSize:16,
         opacity:(items.length===0||loading)?0.4:1, cursor:items.length===0?"not-allowed":"pointer"}}
         onClick={()=>items.length>0&&submit()} disabled={loading||items.length===0}>
         {loading?"Submitting…":`Submit Order · ${items.length} item${items.length!==1?"s":""}`}
       </button>
- 
-      {/* #15 — modal has enough bottom padding to clear bottom nav */}
+
+      {/* #15 — modal has enough bottom padding to clear bottom nav, close at bottom */}
       {modal&&(
         <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.78)", display:"flex",
           alignItems:"flex-end", justifyContent:"center", zIndex:200}} onClick={()=>setModal(null)}>
           <div style={{...card, width:"100%", maxWidth:600, borderRadius:"18px 18px 0 0", padding:0,
             maxHeight:"80vh", overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
             <div style={{padding:"16px 18px 12px", borderBottom:`1px solid ${C.border}`,
-              display:"flex", justifyContent:"space-between", alignItems:"center",
               position:"sticky", top:0, background:C.card, borderRadius:"18px 18px 0 0"}}>
               <div style={{fontSize:17, fontWeight:700, fontFamily:"'Crimson Pro',Georgia,serif"}}>
                 Add {modal.item.name}</div>
-              <button onClick={()=>setModal(null)} style={{background:C.royal, border:"none",
-                color:C.white, fontSize:18, cursor:"pointer", padding:"6px 12px",
-                borderRadius:8, fontFamily:"'DM Sans',sans-serif", fontWeight:700}}>✕ Close</button>
             </div>
-            <div style={{padding:"18px 18px 32px"}}>
+            <div style={{padding:"18px 18px 8px"}}>
               {(modal.item.sizes||modal.type==="kit")&&(
                 <F label="Size">
                   <select style={sel} value={mSize} onChange={e=>setMSize(e.target.value)}>
@@ -818,12 +819,14 @@ function KitOrderForm({user}) {
                 <label style={lbl}>Quantity</label>
                 <Stepper value={mQty} onChange={setMQty}/>
               </div>
-              <div style={{display:"flex", gap:10}}>
-                <button style={btn} onClick={confirmAdd}>Add to Order</button>
-                <button style={{background:"transparent", color:C.muted, border:`1px solid ${C.border}`,
-                  borderRadius:8, padding:"10px 18px", fontSize:14, cursor:"pointer", fontFamily:"'DM Sans',sans-serif"}}
-                  onClick={()=>setModal(null)}>Cancel</button>
-              </div>
+              <button style={{...btn, width:"100%", marginBottom:10}} onClick={confirmAdd}>
+                Add to Order
+              </button>
+              <button style={{width:"100%", background:"transparent", color:C.muted,
+                border:`1px solid ${C.border}`, borderRadius:10, padding:"13px 24px",
+                fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif",
+                marginBottom:8}}
+                onClick={()=>setModal(null)}>Cancel</button>
             </div>
           </div>
         </div>
@@ -831,11 +834,22 @@ function KitOrderForm({user}) {
     </div>
   );
 }
- 
+
 // ── Secretary detail modals ────────────────────────────────────
 function RegDetail({reg, onClose, onToggle}) {
   const d = reg;
-  const Row = ({label,value}) => (
+  const [photoUrl, setPhotoUrl] = useState(d.photo_url||null);
+
+  // #19 — if the stored public URL fails, try generating a signed URL
+  useEffect(()=>{
+    if (!d.photo_url) return;
+    // Extract the storage path from the URL (everything after /player-photos/)
+    const match = d.photo_url.match(/player-photos\/(.+)$/);
+    if (!match) return;
+    const path = match[1];
+    sb.storage.from("player-photos").createSignedUrl(path, 3600)
+      .then(({data})=>{ if (data?.signedUrl) setPhotoUrl(data.signedUrl); });
+  },[d.photo_url]);
     <div style={{display:"flex", gap:8, marginBottom:9, fontFamily:"'DM Sans',sans-serif"}}>
       <div style={{fontSize:11, color:C.muted, minWidth:120, flexShrink:0,
         textTransform:"uppercase", letterSpacing:"0.06em", paddingTop:1}}>{label}</div>
@@ -857,13 +871,13 @@ function RegDetail({reg, onClose, onToggle}) {
         <Row label="Nationality" value={d.nationality}/>
         <Row label="Address" value={`${d.address||""} ${d.postcode||""}`.trim()}/>
       </div>
-      {/* #19 — photo shown and tappable to open/save */}
-      {d.photo_url&&(
+      {/* #19 — photo shown using signed URL, tappable to open/save */}
+      {photoUrl&&(
         <div style={{...card, marginBottom:12, padding:13}}>
           <div style={secHead}>Photo</div>
-          <a href={d.photo_url} target="_blank" rel="noreferrer"
+          <a href={photoUrl} target="_blank" rel="noreferrer"
             style={{display:"block", textDecoration:"none"}}>
-            <img src={d.photo_url} alt="Player" style={{width:"100%", maxHeight:220,
+            <img src={photoUrl} alt="Player" style={{width:"100%", maxHeight:220,
               objectFit:"cover", borderRadius:8, display:"block"}}/>
             <div style={{fontFamily:"'DM Sans',sans-serif", fontSize:11, color:C.royal,
               marginTop:6, textAlign:"center"}}>Tap to open / save full image</div>
@@ -899,13 +913,13 @@ function RegDetail({reg, onClose, onToggle}) {
     </Modal>
   );
 }
- 
+
 function OrderDetail({order, onClose, onToggle}) {
   // #20 — only show personalisation rows when they exist and have data
   const hasPersonalisation = (item) =>
     item.personalisation_data &&
     item.personalisation_data.some(p=>p.squad||p.initials);
- 
+
   return (
     <Modal title={`${order.team} · ${order.age_group}`} onClose={onClose}>
       <div style={{marginBottom:14}}>
@@ -957,7 +971,147 @@ function OrderDetail({order, onClose, onToggle}) {
     </Modal>
   );
 }
- 
+
+// ── My Submissions (coach view) ───────────────────────────────
+function MySubmissionsView({user}) {
+  const [tab, setTab] = useState("registrations");
+  const [regs, setRegs] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [loadingRegs, setLoadingRegs] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [selReg, setSelReg] = useState(null);
+  const [selOrd, setSelOrd] = useState(null);
+
+  useEffect(()=>{
+    sb.from("registrations").select("*")
+      .eq("submitted_by", user.id)
+      .order("submitted_at", {ascending:false})
+      .then(({data})=>{ setRegs(data||[]); setLoadingRegs(false); });
+  },[user.id]);
+
+  useEffect(()=>{
+    sb.from("kit_orders").select("*, kit_order_items(*)")
+      .eq("submitted_by", user.id)
+      .order("submitted_at", {ascending:false})
+      .then(({data})=>{ setOrders(data||[]); setLoadingOrders(false); });
+  },[user.id]);
+
+  const pending = list => list.filter(i=>i.status==="pending").length;
+
+  return (
+    <div style={{padding:18}}>
+      <h2 style={{margin:"0 0 4px", fontSize:22, fontFamily:"'Crimson Pro',Georgia,serif"}}>My Submissions</h2>
+      <p style={{margin:"0 0 18px", color:C.muted, fontFamily:"'DM Sans',sans-serif", fontSize:13}}>
+        Your registrations and kit orders.</p>
+      <div style={{display:"flex", gap:4, marginBottom:14, background:C.card, borderRadius:10,
+        padding:4, border:`1px solid ${C.border}`}}>
+        {[{id:"registrations",label:`Registrations${pending(regs)>0?` (${pending(regs)} pending)`:""}`,},
+          {id:"orders",label:`Orders${pending(orders)>0?` (${pending(orders)} pending)`:""}`,}].map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)}
+            style={{flex:1, padding:"9px 0", borderRadius:8, border:"none",
+              background:tab===t.id?`linear-gradient(135deg,${C.royal},${C.bright})`:"transparent",
+              color:tab===t.id?C.white:C.muted, fontFamily:"'DM Sans',sans-serif",
+              fontSize:13, fontWeight:700, cursor:"pointer"}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab==="registrations"&&(
+        <div style={card}>
+          <div style={{marginBottom:12}}>
+            <span style={{fontFamily:"'DM Sans',sans-serif", fontSize:12, color:C.muted}}>
+              {regs.length} total · {pending(regs)} pending</span>
+          </div>
+          {loadingRegs?<Spinner/>:regs.length===0
+            ?<div style={{color:C.muted, fontFamily:"'DM Sans',sans-serif", fontSize:13, padding:"12px 0"}}>
+              You haven't submitted any registrations yet.</div>
+            :regs.map(r=>(
+            <div key={r.id} onClick={()=>setSelReg(r)}
+              style={{background:C.input, borderRadius:10, padding:13, marginBottom:8,
+                border:`1px solid ${C.border}`, cursor:"pointer", display:"flex",
+                justifyContent:"space-between", alignItems:"center"}}>
+              <div>
+                <div style={{fontWeight:700, fontSize:14, fontFamily:"'DM Sans',sans-serif", marginBottom:3}}>
+                  {r.first_name} {r.surname}</div>
+                <div style={{fontSize:11, color:C.muted, fontFamily:"'DM Sans',sans-serif"}}>
+                  {r.team} · {r.age_group} · {fmtDate(r.submitted_at)}</div>
+              </div>
+              <div style={{display:"flex", alignItems:"center", gap:8}}>
+                <Bdg s={r.status}/><span style={{color:C.muted, fontSize:18}}>›</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab==="orders"&&(
+        <div style={card}>
+          <div style={{marginBottom:12}}>
+            <span style={{fontFamily:"'DM Sans',sans-serif", fontSize:12, color:C.muted}}>
+              {orders.length} total · {pending(orders)} pending</span>
+          </div>
+          {loadingOrders?<Spinner/>:orders.length===0
+            ?<div style={{color:C.muted, fontFamily:"'DM Sans',sans-serif", fontSize:13, padding:"12px 0"}}>
+              You haven't submitted any kit orders yet.</div>
+            :orders.map(o=>(
+            <div key={o.id} onClick={()=>setSelOrd(o)}
+              style={{background:C.input, borderRadius:10, padding:13, marginBottom:8,
+                border:`1px solid ${C.border}`, cursor:"pointer", display:"flex",
+                justifyContent:"space-between", alignItems:"center"}}>
+              <div>
+                <div style={{fontWeight:700, fontSize:14, fontFamily:"'DM Sans',sans-serif", marginBottom:3}}>
+                  {o.team} · {o.age_group}</div>
+                <div style={{fontSize:11, color:C.muted, fontFamily:"'DM Sans',sans-serif"}}>
+                  {(o.kit_order_items||[]).length} item{(o.kit_order_items||[]).length!==1?"s":""} · {fmtDate(o.submitted_at)}</div>
+              </div>
+              <div style={{display:"flex", alignItems:"center", gap:8}}>
+                <Bdg s={o.status}/><span style={{color:C.muted, fontSize:18}}>›</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {selReg&&(
+        <Modal title={`${selReg.first_name} ${selReg.surname}`} onClose={()=>setSelReg(null)}>
+          <div style={{marginBottom:14}}><Bdg s={selReg.status}/></div>
+          {[["Team",selReg.team],["Age Group",selReg.age_group],
+            ["Date of Birth",fmtDate(selReg.dob)],["Submitted",fmtDate(selReg.submitted_at)]
+          ].map(([label,value])=>(
+            <div key={label} style={{display:"flex", gap:8, marginBottom:9, fontFamily:"'DM Sans',sans-serif"}}>
+              <div style={{fontSize:11, color:C.muted, minWidth:110, flexShrink:0,
+                textTransform:"uppercase", letterSpacing:"0.06em"}}>{label}</div>
+              <div style={{fontSize:13, color:C.offwhite}}>{value||"—"}</div>
+            </div>
+          ))}
+        </Modal>
+      )}
+
+      {selOrd&&(
+        <Modal title={`${selOrd.team} · ${selOrd.age_group}`} onClose={()=>setSelOrd(null)}>
+          <div style={{marginBottom:14}}><Bdg s={selOrd.status}/></div>
+          <div style={{fontFamily:"'DM Sans',sans-serif", fontSize:13, color:C.muted, marginBottom:14}}>
+            Submitted {fmtDate(selOrd.submitted_at)}</div>
+          <div style={secHead}>Line Items</div>
+          {(selOrd.kit_order_items||[]).map((item,idx)=>(
+            <div key={idx} style={{fontFamily:"'DM Sans',sans-serif", fontSize:13,
+              marginBottom:8, color:C.offwhite}}>
+              {item.item_name}{item.size?` · ${item.size}`:""} × {item.qty}
+            </div>
+          ))}
+          {selOrd.special_request&&(
+            <div style={{marginTop:12, padding:10, background:C.input, borderRadius:8,
+              border:`1px solid ${C.border}`, fontSize:13, fontFamily:"'DM Sans',sans-serif", color:C.silver}}>
+              📝 {selOrd.special_request}
+            </div>
+          )}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 // ── Secretary dashboard ────────────────────────────────────────
 function SecretaryView() {
   const [tab, setTab] = useState("registrations");
@@ -967,29 +1121,29 @@ function SecretaryView() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [selReg, setSelReg] = useState(null);
   const [selOrd, setSelOrd] = useState(null);
- 
+
   useEffect(()=>{
     sb.rpc("get_all_registrations").then(({data})=>{ setRegs(data||[]); setLoadingRegs(false); });
   },[]);
- 
+
   useEffect(()=>{
     sb.rpc("get_all_kit_orders").then(({data})=>{ setOrders(data||[]); setLoadingOrders(false); });
   },[]);
- 
+
   const toggleReg = async (id, currentStatus) => {
     const newStatus = currentStatus==="pending"?"actioned":"pending";
     await sb.rpc("toggle_registration", {reg_id:id, new_status:newStatus});
     setRegs(prev=>prev.map(r=>r.id===id?{...r,status:newStatus}:r));
   };
- 
+
   const toggleOrd = async (id, currentStatus) => {
     const newStatus = currentStatus==="pending"?"actioned":"pending";
     await sb.rpc("toggle_kit_order", {order_id:id, new_status:newStatus});
     setOrders(prev=>prev.map(o=>o.id===id?{...o,status:newStatus}:o));
   };
- 
+
   const pending = list => list.filter(i=>i.status==="pending").length;
- 
+
   return (
     <div style={{padding:18}}>
       <h2 style={{margin:"0 0 4px", fontSize:22, fontFamily:"'Crimson Pro',Georgia,serif"}}>Secretary Dashboard</h2>
@@ -1007,7 +1161,7 @@ function SecretaryView() {
           </button>
         ))}
       </div>
- 
+
       {tab==="registrations"&&(
         <div style={card}>
           <div style={{marginBottom:12}}>
@@ -1035,7 +1189,7 @@ function SecretaryView() {
           ))}
         </div>
       )}
- 
+
       {tab==="orders"&&(
         <div style={card}>
           <div style={{marginBottom:12}}>
@@ -1062,19 +1216,19 @@ function SecretaryView() {
           ))}
         </div>
       )}
- 
+
       {selReg&&<RegDetail reg={selReg} onClose={()=>setSelReg(null)} onToggle={toggleReg}/>}
       {selOrd&&<OrderDetail order={selOrd} onClose={()=>setSelOrd(null)} onToggle={toggleOrd}/>}
     </div>
   );
 }
- 
+
 // ── Root ───────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
   const [active, setActive] = useState("dashboard");
   const [checking, setChecking] = useState(true);
- 
+
   useEffect(()=>{
     sb.auth.getSession().then(async({data:{session}})=>{
       if (session) {
@@ -1088,16 +1242,16 @@ export default function App() {
       setChecking(false);
     });
   },[]);
- 
+
   const handleLogout = async () => { await sb.auth.signOut(); setUser(null); };
- 
+
   if (checking) return (
     <div style={{minHeight:"100vh", background:`linear-gradient(160deg,${C.navy} 0%,#060e1c 100%)`,
       display:"flex", alignItems:"center", justifyContent:"center"}}>
       <Crest size={80} glow/>
     </div>
   );
- 
+
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -1111,6 +1265,7 @@ export default function App() {
               {active==="dashboard"&&<DashboardView user={user} setActive={setActive}/>}
               {active==="registration"&&<RegistrationForm user={user}/>}
               {active==="kitorder"&&<KitOrderForm user={user}/>}
+              {active==="mysubmissions"&&<MySubmissionsView user={user}/>}
               {active==="secretary"&&user.isSecretary&&<SecretaryView/>}
             </main>
             <BottomNav active={active} setActive={setActive} isSecretary={user.isSecretary}/>
