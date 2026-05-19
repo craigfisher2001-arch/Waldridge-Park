@@ -939,11 +939,16 @@ export default function App() {
   useEffect(()=>{
     sb.auth.getSession().then(async({data:{session}})=>{
       if(session){
-        const {data:profile}=await sb.from("profiles").select("*").eq("id",session.user.id).single();
-        const {data:teamRows}=await sb.from("profile_teams").select("team").eq("profile_id",session.user.id);
-        const teams=(teamRows||[]).map(r=>r.team);
-        setUser({id:session.user.id,name:profile.name,role:profile.role,
-          isSecretary:profile.is_secretary,teams});
+        try {
+          const {data:profile, error:pErr}=await sb.from("profiles").select("*").eq("id",session.user.id).single();
+          if(pErr||!profile){ setChecking(false); return; }
+          const {data:teamRows}=await sb.from("profile_teams").select("team").eq("profile_id",session.user.id);
+          const teams=(teamRows||[]).map(r=>r.team);
+          setUser({id:session.user.id,name:profile.name,role:profile.role,
+            isSecretary:profile.is_secretary,teams});
+        } catch(e){
+          console.error("Session restore failed:",e);
+        }
       }
       setChecking(false);
     });
