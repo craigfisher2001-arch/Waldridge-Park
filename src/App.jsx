@@ -221,8 +221,11 @@ function LoginScreen({onLogin}) {
     const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
     if(error){ setErr(error.message); setLoading(false); return; }
 
-    // Fetch profile + teams
-    const {data:profile}=await sb.from("profiles").select("*").eq("id",data.user.id).single();
+    const {data:profile, error:pErr}=await sb.from("profiles").select("*").eq("id",data.user.id).single();
+    if(pErr||!profile){
+      setErr(`Profile not found. Supabase error: ${pErr?.message||"unknown"}`);
+      setLoading(false); return;
+    }
     const {data:teamRows}=await sb.from("profile_teams").select("team").eq("profile_id",data.user.id);
     const teams=(teamRows||[]).map(r=>r.team);
     onLogin({id:data.user.id, name:profile.name, role:profile.role,
