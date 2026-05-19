@@ -273,25 +273,16 @@ function DashboardView({user, setActive}) {
   const [stats, setStats] = useState({pendingRegs:0, pendingOrders:0});
 
   useEffect(()=>{
-    // Use RPC to avoid RLS permission issues on direct table queries
     async function load() {
-      const [{data:regs},{data:orders}] = await Promise.all([
-        sb.rpc("get_my_pending_counts", {uid: user.id, is_sec: user.isSecretary}),
-        sb.rpc("get_my_pending_counts", {uid: user.id, is_sec: user.isSecretary}),
-      ]);
-      // Simpler: just fetch all registrations and orders via existing RPCs and count
+      // Use RPC (security definer) for all users to avoid RLS blocking counts
       const [rData, oData] = await Promise.all([
-        user.isSecretary
-          ? sb.rpc("get_all_registrations")
-          : sb.from("registrations").select("id,status").eq("submitted_by",user.id),
-        user.isSecretary
-          ? sb.rpc("get_all_kit_orders")
-          : sb.from("kit_orders").select("id,status").eq("submitted_by",user.id),
+        sb.rpc("get_all_registrations"),
+        sb.rpc("get_all_kit_orders"),
       ]);
-      const recs = rData.data || [];
-      const ords = oData.data || [];
+      const recs = (rData.data || []).filter(r => user.isSecretary || r.submitted_by === user.id);
+      const ords = (oData.data || []).filter(o => user.isSecretary || o.submitted_by === user.id);
       setStats({
-        pendingRegs: recs.filter(r=>r.status==="pending").length,
+        pendingRegs:   recs.filter(r=>r.status==="pending").length,
         pendingOrders: ords.filter(o=>o.status==="pending").length,
       });
     }
