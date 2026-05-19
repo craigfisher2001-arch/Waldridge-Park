@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase client ────────────────────────────────────────────
 const SUPABASE_URL = "https://ouerpsdkpzsojjqzfezq.supabase.co";
-const SUPABASE_KEY = "sb_publishable_N7RRUrt-JUV4L-qOWT1efA_b2tX1dVX";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91ZXJwc2RrcHpzb2pqcXpmZXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMDU2OTAsImV4cCI6MjA5NDY4MTY5MH0.AoYkAJFzAyvmgSCzdHiBTI7Qw4c3d53Yga_-CyM8m9c";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── Static reference data ──────────────────────────────────────
