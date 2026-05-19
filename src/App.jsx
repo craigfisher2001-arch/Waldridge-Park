@@ -547,7 +547,7 @@ function RegistrationForm({user}) {
 
 // ── Kit order form ─────────────────────────────────────────────
 function KitOrderForm({user}) {
-  const [tab, setTab] = useState("kit");
+  const [tab, setTab] = useState("playing_kit");
   const [ageGroup, setAgeGroup] = useState("");
   const [team, setTeam] = useState(user.teams[0]||"");
   const [items, setItems] = useState([]);
@@ -565,8 +565,9 @@ function KitOrderForm({user}) {
     sb.rpc("get_catalogue").then(({data})=>{ setCatalogue(data||[]); });
   },[]);
 
-  const kitItems = catalogue.filter(i=>i.category==="kit");
+  const kitItems = catalogue.filter(i=>i.category==="playing_kit");
   const equipItems = catalogue.filter(i=>i.category==="equipment");
+  const merchItems = catalogue.filter(i=>i.category==="supporter_merch");
 
   const openModal = (type, item) => { setModal({type, item}); setMSize(""); setMQty(1); };
 
@@ -694,36 +695,60 @@ function KitOrderForm({user}) {
 
       <div style={{display:"flex", gap:4, marginBottom:12, background:C.card,
         borderRadius:10, padding:4, border:`1px solid ${C.border}`}}>
-        {/* #11 — kit first */}
-        {["kit","equipment"].map(t=>(
-          <button key={t} onClick={()=>setTab(t)}
+        {[{id:"playing_kit",label:"Playing Kit"},{id:"equipment",label:"Equipment"},{id:"supporter_merch",label:"Merch"}].map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)}
             style={{flex:1, padding:"9px 0", borderRadius:8, border:"none",
-              background:tab===t?`linear-gradient(135deg,${C.royal},${C.bright})`:"transparent",
-              color:tab===t?C.white:C.muted, fontFamily:"'DM Sans',sans-serif",
-              fontSize:13, fontWeight:700, cursor:"pointer", textTransform:"capitalize"}}>
-            {t}
+              background:tab===t.id?`linear-gradient(135deg,${C.royal},${C.bright})`:"transparent",
+              color:tab===t.id?C.white:C.muted, fontFamily:"'DM Sans',sans-serif",
+              fontSize:12, fontWeight:700, cursor:"pointer"}}>
+            {t.label}
           </button>
         ))}
       </div>
 
+      {/* Supporter merch warning */}
+      {tab==="supporter_merch"&&(
+        <div style={{background:"rgba(217,119,6,0.12)", border:`1px solid ${C.warn}`, borderRadius:10,
+          padding:"12px 14px", marginBottom:14, fontFamily:"'DM Sans',sans-serif", fontSize:13,
+          color:C.warn, lineHeight:1.6}}>
+          ⚠️ These products are not funded by the club and must be paid for before ordering.
+        </div>
+      )}
+
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14}}>
-        {(tab==="equipment"?equipItems:kitItems).map(item=>(
+        {(tab==="equipment"?equipItems:tab==="supporter_merch"?merchItems:kitItems).map(item=>(
           <button key={item.id} onClick={()=>openModal(tab,item)}
             style={{background:C.input, border:`1px solid ${C.border}`, borderRadius:12,
-              padding:13, color:C.white, cursor:"pointer", textAlign:"left", fontFamily:"'DM Sans',sans-serif"}}>
-            <div style={{fontSize:13, fontWeight:700, marginBottom:2}}>{item.name}</div>
-            <div style={{fontSize:10, color:C.royal, fontWeight:700, marginBottom:4, textTransform:"uppercase",
-              letterSpacing:"0.06em"}}>{item.brand}</div>
-            <div style={{fontSize:10, color:C.muted, marginBottom:6}}>
-              {item.sizes ? item.sizes.join(" · ") : "No size"}
-              {item.u13above?" · U13+":""}</div>
-            {item.personalisation==="squad_required"&&
-              <div style={{fontSize:10, color:C.warn, fontWeight:700}}>⚠ Squad no. required</div>}
-            {item.personalisation==="gk_squad"&&
-              <div style={{fontSize:10, color:C.warn, fontWeight:700}}>⚠ Squad no. required</div>}
-            {(item.personalisation==="optional"||item.personalisation==="initials_optional")&&
-              <div style={{fontSize:10, color:C.muted}}>Personalisation optional</div>}
-            <div style={{marginTop:8, fontSize:11, color:C.royal, fontWeight:700}}>+ Add to order</div>
+              padding:0, color:C.white, cursor:"pointer", textAlign:"left",
+              fontFamily:"'DM Sans',sans-serif", overflow:"hidden"}}>
+            {/* Thumbnail */}
+            {item.image_url?(
+              <img src={item.image_url} alt={item.name}
+                style={{width:"100%", height:90, objectFit:"contain",
+                  background:"#07121f", display:"block"}}
+                onError={e=>{ e.target.style.display="none"; }}/>
+            ):(
+              <div style={{width:"100%", height:70, background:"#07121f",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                fontSize:28}}>
+                {tab==="supporter_merch"?"🧣":tab==="equipment"?"⚽":"👕"}
+              </div>
+            )}
+            <div style={{padding:11}}>
+              <div style={{fontSize:13, fontWeight:700, marginBottom:2}}>{item.name}</div>
+              <div style={{fontSize:10, color:C.royal, fontWeight:700, marginBottom:4,
+                textTransform:"uppercase", letterSpacing:"0.06em"}}>{item.brand}</div>
+              <div style={{fontSize:10, color:C.muted, marginBottom:6}}>
+                {item.sizes ? item.sizes.join(" · ") : "No size"}
+                {item.u13above?" · U13+":""}</div>
+              {item.personalisation==="squad_required"&&
+                <div style={{fontSize:10, color:C.warn, fontWeight:700}}>⚠ Squad no. required</div>}
+              {item.personalisation==="gk_squad"&&
+                <div style={{fontSize:10, color:C.warn, fontWeight:700}}>⚠ Squad no. required</div>}
+              {(item.personalisation==="optional"||item.personalisation==="initials_optional")&&
+                <div style={{fontSize:10, color:C.muted}}>Personalisation optional</div>}
+              <div style={{marginTop:6, fontSize:11, color:C.royal, fontWeight:700}}>+ Add to order</div>
+            </div>
           </button>
         ))}
         {catalogue.length===0&&(
@@ -804,6 +829,14 @@ function KitOrderForm({user}) {
                 Add {modal.item.name}</div>
             </div>
             <div style={{padding:"18px 18px 8px"}}>
+              {/* Thumbnail in modal */}
+              {modal.item.image_url&&(
+                <div style={{textAlign:"center", marginBottom:16}}>
+                  <img src={modal.item.image_url} alt={modal.item.name}
+                    style={{maxHeight:120, maxWidth:"100%", objectFit:"contain", borderRadius:8}}
+                    onError={e=>{ e.target.style.display="none"; }}/>
+                </div>
+              )}
               {modal.item.sizes&&modal.item.sizes.length>0&&(
                 <F label="Size">
                   <select style={sel} value={mSize} onChange={e=>setMSize(e.target.value)}>
@@ -1122,7 +1155,7 @@ function MySubmissionsView({user, initialTab="registrations"}) {
 }
 
 // ── Secretary dashboard ────────────────────────────────────────
-const EMPTY_ITEM = { name:"", category:"kit", brand:"Pendle", sizes:"", personalisation:"", u13above:false };
+const EMPTY_ITEM = { name:"", category:"playing_kit", brand:"Pendle", sizes:"", personalisation:"", u13above:false, image_url:"" };
 const PERSONALISATION_OPTS = [
   {value:"",                 label:"None"},
   {value:"squad_required",   label:"Squad number (required)"},
@@ -1189,8 +1222,11 @@ function SecretaryView() {
       personalisation: editItem.personalisation||null,
       u13above: !!editItem.u13above,
       sort_order: editItem.sort_order||0,
+      image_url: editItem.image_url||null,
     };
-    await sb.rpc("upsert_catalogue_item", {payload: JSON.stringify(payload)});
+    // Pass as JSON object directly (not stringified) — Supabase handles json param type
+    const {error} = await sb.rpc("upsert_catalogue_item", {payload});
+    if (error) { setCatErr(error.message); setCatSaving(false); return; }
     setCatSaving(false);
     setEditItem(null);
     loadCatalogue();
@@ -1203,8 +1239,9 @@ function SecretaryView() {
   };
 
   const pending = list => list.filter(i=>i.status==="pending").length;
-  const catKit = catalogue.filter(i=>i.category==="kit");
+  const catKit = catalogue.filter(i=>i.category==="playing_kit");
   const catEquip = catalogue.filter(i=>i.category==="equipment");
+  const catMerch = catalogue.filter(i=>i.category==="supporter_merch");
 
   const tabList = [
     {id:"registrations", label:`Registrations${pending(regs)>0?` (${pending(regs)})`:""}` },
@@ -1297,8 +1334,9 @@ function SecretaryView() {
           </div>
 
           {loadingCat?<Spinner/>:[
-            {label:"Kit", items:catKit},
-            {label:"Equipment", items:catEquip},
+            {label:"Playing Kit",     items:catKit},
+            {label:"Equipment",       items:catEquip},
+            {label:"Supporter Merch", items:catMerch},
           ].map(group=>(
             <div key={group.label} style={{...card, marginBottom:14}}>
               <div style={secHead}>{group.label}</div>
@@ -1350,8 +1388,9 @@ function SecretaryView() {
               <F label="Category">
                 <select style={sel} value={editItem.category}
                   onChange={e=>setEditItem(p=>({...p,category:e.target.value}))}>
-                  <option value="kit">Kit</option>
+                  <option value="playing_kit">Playing Kit</option>
                   <option value="equipment">Equipment</option>
+                  <option value="supporter_merch">Supporter Merch</option>
                 </select>
               </F>
               <F label="Brand">
@@ -1360,8 +1399,13 @@ function SecretaryView() {
               </F>
               <F label="Sizes (comma separated, leave blank if no size)">
                 <input style={inp} value={editItem.sizes}
-                  placeholder='e.g. XS, S, M, L or "Size 3, Size 4, Size 5"'
+                  placeholder='e.g. XS, S, M, L or Size 3, Size 4'
                   onChange={e=>setEditItem(p=>({...p,sizes:e.target.value}))}/>
+              </F>
+              <F label="Thumbnail Image URL (optional)">
+                <input style={inp} value={editItem.image_url||""}
+                  placeholder="https://example.com/image.jpg"
+                  onChange={e=>setEditItem(p=>({...p,image_url:e.target.value}))}/>
               </F>
               <F label="Personalisation">
                 <select style={sel} value={editItem.personalisation}
