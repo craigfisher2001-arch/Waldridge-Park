@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
-
+ 
 // ── Supabase client ────────────────────────────────────────────
 const SUPABASE_URL = "https://ouerpsdkpzsojjqzfezq.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91ZXJwc2RrcHpzb2pqcXpmZXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMDU2OTAsImV4cCI6MjA5NDY4MTY5MH0.AoYkAJFzAyvmgSCzdHiBTI7Qw4c3d53Yga_-CyM8m9c";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-
+ 
 // ── Static reference data ──────────────────────────────────────
 const TEAMS = ["Superstars","Fenwick","Ingram","Bowmont","Hawkhill","Portland",
   "Glanton","Longburn","Hauxley","Grasmere","Aberwick","Lions","Dunstan",
@@ -15,7 +15,7 @@ const AGE_GROUPS = ["U7s","U8s","U9s","U10s","U11s","U12s","U13s","U14s",
 const GENDERS = ["Male","Female","Non-binary","Prefer not to say"];
 const NATIONALITIES = ["British","English","Scottish","Welsh","Irish","Other"];
 const KIT_SIZES = ["XS","S","SY","Y","S-M","L","XL","XXL"];
-
+ 
 const EQUIPMENT_ITEMS = [
   { id:"train_ball", name:"Training Balls", sizes:["Size 3","Size 4","Size 5"], personalisation:null },
   { id:"match_ball", name:"Match Balls", sizes:["Size 3","Size 4","Size 5"], personalisation:null },
@@ -27,7 +27,7 @@ const EQUIPMENT_ITEMS = [
   { id:"nets", name:"Nets", sizes:null, personalisation:null, u13above:true },
   { id:"bibs", name:"Bibs", sizes:["S","M","L","XL"], personalisation:null },
 ];
-
+ 
 const KIT_ITEMS = [
   { id:"home_shirt", name:"Home Shirt", personalisation:"squad_required" },
   { id:"home_shorts", name:"Home Shorts", personalisation:null },
@@ -39,7 +39,7 @@ const KIT_ITEMS = [
   { id:"coach_jumper", name:"Coach Jumper", personalisation:"initials_optional" },
   { id:"coach_tshirt", name:"Coach T-Shirt", personalisation:"initials_optional" },
 ];
-
+ 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
   navy:"#0a1628", blue:"#1a3a8f", royal:"#1e4fd8", bright:"#2563eb",
@@ -47,7 +47,7 @@ const C = {
   border:"#1e3a7a", success:"#16a34a", warn:"#d97706", danger:"#dc2626",
   card:"#0f2044", input:"#0d1e3d",
 };
-
+ 
 const inp = { width:"100%", background:C.input, border:`1px solid ${C.border}`,
   borderRadius:8, padding:"11px 14px", color:C.white, fontSize:15,
   fontFamily:"'DM Sans',sans-serif", outline:"none", boxSizing:"border-box" };
@@ -63,8 +63,8 @@ const lbl = { display:"block", fontSize:11, fontWeight:700, letterSpacing:"0.08e
 const secHead = { margin:"0 0 14px", fontSize:12, letterSpacing:"0.08em",
   textTransform:"uppercase", color:C.silver, fontFamily:"'DM Sans',sans-serif", fontWeight:700,
   borderBottom:`1px solid ${C.border}`, paddingBottom:9 };
-
-// ── Shared components ──────────────────────────────────────────
+ 
+// ── Shared components — all at module level to prevent focus loss ──
 const Bdg = ({s:status}) => (
   <span style={{ display:"inline-block", padding:"3px 9px", borderRadius:20, fontSize:10,
     fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase",
@@ -73,7 +73,20 @@ const Bdg = ({s:status}) => (
     color:status==="pending"?C.warn:C.success,
     border:`1px solid ${status==="pending"?C.warn:C.success}` }}>{status}</span>
 );
-
+ 
+function F({label,children,mb=16}) {
+  return <div style={{marginBottom:mb}}><label style={lbl}>{label}</label>{children}</div>;
+}
+ 
+function Section({title,children}) {
+  return (
+    <div style={{...card,marginBottom:14}}>
+      <div style={secHead}>{title}</div>
+      {children}
+    </div>
+  );
+}
+ 
 function Crest({size=48,glow=false}) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100"
@@ -98,7 +111,7 @@ function Crest({size=48,glow=false}) {
     </svg>
   );
 }
-
+ 
 function Stepper({value,onChange,min=1,max=99}) {
   return (
     <div style={{display:"flex",alignItems:"center",border:`1px solid ${C.border}`,
@@ -114,11 +127,7 @@ function Stepper({value,onChange,min=1,max=99}) {
     </div>
   );
 }
-
-function F({label,children,mb=16}) {
-  return <div style={{marginBottom:mb}}><label style={lbl}>{label}</label>{children}</div>;
-}
-
+ 
 function Modal({onClose,title,children}) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",
@@ -137,14 +146,14 @@ function Modal({onClose,title,children}) {
     </div>
   );
 }
-
+ 
 function ErrBanner({msg}) {
   if(!msg) return null;
   return <div style={{background:"rgba(220,38,38,0.15)",border:`1px solid ${C.danger}`,
     borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,
     color:C.danger,fontFamily:"'DM Sans',sans-serif"}}>{msg}</div>;
 }
-
+ 
 function Spinner() {
   return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
     <div style={{width:32,height:32,border:`3px solid ${C.border}`,
@@ -153,7 +162,7 @@ function Spinner() {
     <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
   </div>;
 }
-
+ 
 // ── Layout ─────────────────────────────────────────────────────
 function Topbar({user,onLogout,active}) {
   const titles={dashboard:"Home",registration:"New Registration",kitorder:"Kit Order",secretary:"Secretary"};
@@ -184,7 +193,7 @@ function Topbar({user,onLogout,active}) {
     </div>
   );
 }
-
+ 
 function BottomNav({active,setActive,isSecretary}) {
   const tabs=[
     {id:"dashboard",icon:"⊞",label:"Home"},
@@ -208,29 +217,28 @@ function BottomNav({active,setActive,isSecretary}) {
     </div>
   );
 }
-
+ 
 // ── Login ──────────────────────────────────────────────────────
 function LoginScreen({onLogin}) {
   const [email,setEmail]=useState("");
   const [pw,setPw]=useState("");
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
-
+ 
   const doLogin=async()=>{
     setErr(""); setLoading(true);
     const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
     if(error){ setErr(error.message); setLoading(false); return; }
-
-    const {data:profile, error:pErr}=await sb.rpc("get_my_profile");
+    const {data:profile,error:pErr}=await sb.rpc("get_my_profile");
     if(pErr||!profile){
       setErr(`Profile error: ${pErr?.message||"unknown"}`);
       setLoading(false); return;
     }
-    onLogin({id:data.user.id, name:profile.name, role:profile.role,
-      isSecretary:profile.is_secretary, teams:profile.teams||[]});
+    onLogin({id:data.user.id,name:profile.name,role:profile.role,
+      isSecretary:profile.is_secretary,teams:profile.teams||[]});
     setLoading(false);
   };
-
+ 
   return (
     <div style={{minHeight:"100vh",background:`linear-gradient(160deg,${C.navy} 0%,#060e1c 100%)`,
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
@@ -265,11 +273,11 @@ function LoginScreen({onLogin}) {
     </div>
   );
 }
-
+ 
 // ── Dashboard ──────────────────────────────────────────────────
 function DashboardView({user,setActive}) {
   const [stats,setStats]=useState({pendingRegs:0,pendingOrders:0});
-
+ 
   useEffect(()=>{
     async function load(){
       if(user.isSecretary){
@@ -290,7 +298,7 @@ function DashboardView({user,setActive}) {
     }
     load();
   },[user]);
-
+ 
   return (
     <div style={{padding:18}}>
       <h2 style={{margin:"0 0 4px",fontSize:24,fontFamily:"'Crimson Pro',Georgia,serif"}}>
@@ -331,26 +339,31 @@ function DashboardView({user,setActive}) {
     </div>
   );
 }
-
+ 
 // ── Registration form ──────────────────────────────────────────
+const EMPTY_REG=(teams)=>({
+  team:teams[0]||"",ageGroup:"",firstName:"",surname:"",address:"",
+  postcode:"",dob:"",gender:"",nationality:"",parentName:"",
+  parentDob:"",parentEmail:"",parentPhone:"",idSeen:false,photo:null,
+});
+ 
 function RegistrationForm({user}) {
-  const [form,setForm]=useState({team:user.teams[0]||"",firstName:"",surname:"",address:"",
-    postcode:"",dob:"",gender:"",nationality:"",parentName:"",parentDob:"",
-    parentEmail:"",parentPhone:"",idSeen:false,photo:null});
+  const [form,setForm]=useState(()=>EMPTY_REG(user.teams));
   const [preview,setPreview]=useState(null);
   const [done,setDone]=useState(false);
   const [loading,setLoading]=useState(false);
   const [err,setErr]=useState("");
   const fileRef=useRef();
-  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   const teamOpts=user.isSecretary?TEAMS:user.teams;
-
+ 
+  const set=useCallback((k,v)=>setForm(f=>({...f,[k]:v})),[]);
+ 
   const handlePhoto=e=>{
     const file=e.target.files[0]; if(!file)return;
     set("photo",file);
     const r=new FileReader(); r.onload=ev=>setPreview(ev.target.result); r.readAsDataURL(file);
   };
-
+ 
   const submit=async()=>{
     setErr(""); setLoading(true);
     try {
@@ -363,21 +376,21 @@ function RegistrationForm({user}) {
         const {data:urlData}=sb.storage.from("player-photos").getPublicUrl(path);
         photo_url=urlData.publicUrl;
       }
-      const {error}=await sb.from("registrations").insert({
-        submitted_by:user.id, team:form.team, age_group:"", status:"pending",
+      const {error}=await sb.rpc("submit_registration",{payload:{
+        team:form.team, age_group:form.ageGroup||"",
         first_name:form.firstName, surname:form.surname,
         dob:form.dob||null, gender:form.gender, nationality:form.nationality,
         address:form.address, postcode:form.postcode,
         parent_name:form.parentName, parent_dob:form.parentDob||null,
         parent_email:form.parentEmail, parent_phone:form.parentPhone,
         id_seen:form.idSeen, photo_url,
-      });
+      }});
       if(error) throw error;
       setDone(true);
     } catch(e){ setErr(e.message||"Submission failed."); }
     setLoading(false);
   };
-
+ 
   if(done) return (
     <div style={{padding:40,display:"flex",flexDirection:"column",alignItems:"center",
       justifyContent:"center",minHeight:400,textAlign:"center"}}>
@@ -387,31 +400,29 @@ function RegistrationForm({user}) {
       <h2 style={{margin:"0 0 8px",fontFamily:"'Crimson Pro',Georgia,serif",fontSize:22}}>Registration Submitted</h2>
       <p style={{color:C.muted,fontFamily:"'DM Sans',sans-serif",fontSize:14}}>
         {form.firstName} {form.surname} registered for {form.team}.</p>
-      <button style={{...btn,marginTop:22}} onClick={()=>{setDone(false);setPreview(null);
-        setForm({team:user.teams[0]||"",firstName:"",surname:"",address:"",postcode:"",dob:"",
-          gender:"",nationality:"",parentName:"",parentDob:"",parentEmail:"",parentPhone:"",idSeen:false,photo:null});
-      }}>Register Another</button>
+      <button style={{...btn,marginTop:22}}
+        onClick={()=>{setDone(false);setPreview(null);setForm(EMPTY_REG(user.teams));}}>
+        Register Another
+      </button>
     </div>
   );
-
-  const Section=({title,children})=>(
-    <div style={{...card,marginBottom:14}}>
-      <div style={secHead}>{title}</div>
-      {children}
-    </div>
-  );
-
+ 
   return (
     <div style={{padding:18}}>
       <h2 style={{margin:"0 0 4px",fontSize:22,fontFamily:"'Crimson Pro',Georgia,serif"}}>New Registration</h2>
       <p style={{margin:"0 0 20px",color:C.muted,fontFamily:"'DM Sans',sans-serif",fontSize:13}}>
         Photo and ID verification required.</p>
       <ErrBanner msg={err}/>
-
+ 
       <Section title="Player Details">
         <F label="Team">
           <select style={sel} value={form.team} onChange={e=>set("team",e.target.value)}>
             {teamOpts.map(t=><option key={t}>{t}</option>)}
+          </select>
+        </F>
+        <F label="Age Group">
+          <select style={sel} value={form.ageGroup} onChange={e=>set("ageGroup",e.target.value)}>
+            <option value="">Select...</option>{AGE_GROUPS.map(a=><option key={a}>{a}</option>)}
           </select>
         </F>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -438,14 +449,14 @@ function RegistrationForm({user}) {
           </F>
         </div>
       </Section>
-
+ 
       <Section title="Parent / Guardian">
         <F label="Full Name"><input style={inp} value={form.parentName} onChange={e=>set("parentName",e.target.value)}/></F>
         <F label="Date of Birth"><input style={inp} type="date" value={form.parentDob} onChange={e=>set("parentDob",e.target.value)}/></F>
         <F label="Email Address"><input style={inp} type="email" value={form.parentEmail} onChange={e=>set("parentEmail",e.target.value)}/></F>
         <F label="Contact Number"><input style={inp} type="tel" value={form.parentPhone} onChange={e=>set("parentPhone",e.target.value)}/></F>
       </Section>
-
+ 
       <Section title="Photo & Identity">
         <F label="Player Headshot">
           <div onClick={()=>fileRef.current.click()}
@@ -472,7 +483,7 @@ function RegistrationForm({user}) {
           </div>
         </label>
       </Section>
-
+ 
       <button style={{...btn,width:"100%",padding:15,fontSize:16,opacity:loading?0.6:1}}
         onClick={submit} disabled={loading}>
         {loading?"Submitting…":"Submit Registration"}
@@ -480,7 +491,7 @@ function RegistrationForm({user}) {
     </div>
   );
 }
-
+ 
 // ── Kit order form ─────────────────────────────────────────────
 function KitOrderForm({user}) {
   const [ageGroup,setAgeGroup]=useState("");
@@ -495,9 +506,9 @@ function KitOrderForm({user}) {
   const [mQty,setMQty]=useState(1);
   const [tab,setTab]=useState("equipment");
   const teamOpts=user.isSecretary?TEAMS:user.teams;
-
+ 
   const openModal=(type,item)=>{setModal({type,item});setMSize("");setMQty(1);};
-
+ 
   const confirmAdd=()=>{
     const item=modal.item;
     setItems(prev=>[...prev,{id:Date.now(),name:item.name,size:mSize,qty:mQty,
@@ -505,45 +516,41 @@ function KitOrderForm({user}) {
       personalisations:Array(mQty).fill(null).map(()=>({squad:"",initials:""}))}]);
     setModal(null);
   };
-
+ 
   const removeItem=id=>setItems(prev=>prev.filter(i=>i.id!==id));
-
+ 
   const updateQty=(id,n)=>setItems(prev=>prev.map(oi=>{
     if(oi.id!==id)return oi;
     const p=[...oi.personalisations];
     const next=Array(n).fill(null).map((_,i)=>p[i]||{squad:"",initials:""});
     return {...oi,qty:n,personalisations:next};
   }));
-
+ 
   const updateP=(id,idx,field,val)=>setItems(prev=>prev.map(oi=>{
     if(oi.id!==id)return oi;
     const p=[...oi.personalisations]; p[idx]={...p[idx],[field]:val};
     return {...oi,personalisations:p};
   }));
-
+ 
   const needsP=p=>p==="squad_required"||p==="optional"||p==="initials_optional";
-
+ 
   const submit=async()=>{
     setErr(""); setLoading(true);
     try {
-      const {data:order,error:oErr}=await sb.from("kit_orders").insert({
-        submitted_by:user.id, team, age_group:ageGroup,
-        status:"pending", special_request:special,
-      }).select().single();
-      if(oErr) throw oErr;
-
-      const lineItems=items.map(i=>({
-        order_id:order.id, item_name:i.name, size:i.size||null,
-        qty:i.qty, personalisation_type:i.personalisation||null,
-        personalisation_data:i.personalisations.length>0?i.personalisations:null,
-      }));
-      const {error:iErr}=await sb.from("kit_order_items").insert(lineItems);
-      if(iErr) throw iErr;
+      const {error}=await sb.rpc("submit_kit_order",{payload:{
+        team, age_group:ageGroup, special_request:special,
+        items:items.map(i=>({
+          item_name:i.name, size:i.size||null, qty:i.qty,
+          personalisation_type:i.personalisation||null,
+          personalisation_data:i.personalisations,
+        })),
+      }});
+      if(error) throw error;
       setDone(true);
     } catch(e){ setErr(e.message||"Submission failed."); }
     setLoading(false);
   };
-
+ 
   if(done) return (
     <div style={{padding:40,display:"flex",flexDirection:"column",alignItems:"center",
       justifyContent:"center",minHeight:400,textAlign:"center"}}>
@@ -556,14 +563,14 @@ function KitOrderForm({user}) {
       <button style={{...btn,marginTop:22}} onClick={()=>{setDone(false);setItems([]);setSpecial("");}}>New Order</button>
     </div>
   );
-
+ 
   return (
     <div style={{padding:18}}>
       <h2 style={{margin:"0 0 4px",fontSize:22,fontFamily:"'Crimson Pro',Georgia,serif"}}>Kit Order</h2>
       <p style={{margin:"0 0 18px",color:C.muted,fontFamily:"'DM Sans',sans-serif",fontSize:13}}>
         Select items, adjust quantities and add personalisation.</p>
       <ErrBanner msg={err}/>
-
+ 
       <div style={{...card,marginBottom:14}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
           <F label="Team" mb={0}>
@@ -581,7 +588,7 @@ function KitOrderForm({user}) {
           <input style={{...inp,color:C.muted}} value={user.name} readOnly/>
         </F>
       </div>
-
+ 
       <div style={{display:"flex",gap:4,marginBottom:12,background:C.card,
         borderRadius:10,padding:4,border:`1px solid ${C.border}`}}>
         {["equipment","kit"].map(t=>(
@@ -594,7 +601,7 @@ function KitOrderForm({user}) {
           </button>
         ))}
       </div>
-
+ 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
         {(tab==="equipment"?EQUIPMENT_ITEMS:KIT_ITEMS).map(item=>(
           <button key={item.id} onClick={()=>openModal(tab,item)}
@@ -612,7 +619,7 @@ function KitOrderForm({user}) {
           </button>
         ))}
       </div>
-
+ 
       {items.length>0&&(
         <div style={{...card,marginBottom:14}}>
           <div style={secHead}>Order · {items.length} line{items.length!==1?"s":""}</div>
@@ -659,20 +666,20 @@ function KitOrderForm({user}) {
           ))}
         </div>
       )}
-
+ 
       <div style={{...card,marginBottom:22}}>
         <F label="Special Requests / Notes" mb={0}>
           <textarea style={{...inp,minHeight:68,resize:"vertical"}} value={special}
             onChange={e=>setSpecial(e.target.value)} placeholder="Any additional information..."/>
         </F>
       </div>
-
+ 
       <button style={{...btn,width:"100%",padding:15,fontSize:16,
         opacity:(items.length===0||loading)?0.4:1,cursor:items.length===0?"not-allowed":"pointer"}}
         onClick={()=>items.length>0&&submit()} disabled={loading||items.length===0}>
         {loading?"Submitting…":`Submit Order · ${items.length} item${items.length!==1?"s":""}`}
       </button>
-
+ 
       {modal&&(
         <Modal title={`Add ${modal.item.name}`} onClose={()=>setModal(null)}>
           {(modal.item.sizes||modal.type==="kit")&&(
@@ -698,7 +705,7 @@ function KitOrderForm({user}) {
     </div>
   );
 }
-
+ 
 // ── Secretary detail modals ────────────────────────────────────
 function RegDetail({reg,onClose,onToggle}) {
   const d=reg;
@@ -719,6 +726,7 @@ function RegDetail({reg,onClose,onToggle}) {
       <div style={{...card,marginBottom:12,padding:13}}>
         <div style={secHead}>Player</div>
         <Row label="Full Name" value={`${d.first_name} ${d.surname}`}/>
+        <Row label="Age Group" value={d.age_group}/>
         <Row label="Date of Birth" value={d.dob}/>
         <Row label="Gender" value={d.gender}/>
         <Row label="Nationality" value={d.nationality}/>
@@ -759,7 +767,7 @@ function RegDetail({reg,onClose,onToggle}) {
     </Modal>
   );
 }
-
+ 
 function OrderDetail({order,onClose,onToggle}) {
   return (
     <Modal title={`${order.team} · ${order.age_group}`} onClose={onClose}>
@@ -812,7 +820,7 @@ function OrderDetail({order,onClose,onToggle}) {
     </Modal>
   );
 }
-
+ 
 // ── Secretary dashboard ────────────────────────────────────────
 function SecretaryView() {
   const [tab,setTab]=useState("registrations");
@@ -822,36 +830,33 @@ function SecretaryView() {
   const [loadingOrders,setLoadingOrders]=useState(true);
   const [selReg,setSelReg]=useState(null);
   const [selOrd,setSelOrd]=useState(null);
-
+ 
   useEffect(()=>{
-    sb.from("registrations").select("*").order("submitted_at",{ascending:false})
-      .then(({data})=>{ setRegs(data||[]); setLoadingRegs(false); });
+    sb.rpc("get_all_registrations").then(({data})=>{
+      setRegs(data||[]); setLoadingRegs(false);
+    });
   },[]);
-
+ 
   useEffect(()=>{
-    sb.from("kit_orders")
-      .select("*, kit_order_items(*), profiles(name)")
-      .order("submitted_at",{ascending:false})
-      .then(({data})=>{
-        const mapped=(data||[]).map(o=>({...o,submitter_name:o.profiles?.name}));
-        setOrders(mapped); setLoadingOrders(false);
-      });
+    sb.rpc("get_all_kit_orders").then(({data})=>{
+      setOrders(data||[]); setLoadingOrders(false);
+    });
   },[]);
-
+ 
   const toggleReg=async(id,currentStatus)=>{
     const newStatus=currentStatus==="pending"?"actioned":"pending";
-    await sb.from("registrations").update({status:newStatus}).eq("id",id);
+    await sb.rpc("toggle_registration",{reg_id:id,new_status:newStatus});
     setRegs(prev=>prev.map(r=>r.id===id?{...r,status:newStatus}:r));
   };
-
+ 
   const toggleOrd=async(id,currentStatus)=>{
     const newStatus=currentStatus==="pending"?"actioned":"pending";
-    await sb.from("kit_orders").update({status:newStatus}).eq("id",id);
+    await sb.rpc("toggle_kit_order",{order_id:id,new_status:newStatus});
     setOrders(prev=>prev.map(o=>o.id===id?{...o,status:newStatus}:o));
   };
-
+ 
   const pending=list=>list.filter(i=>i.status==="pending").length;
-
+ 
   return (
     <div style={{padding:18}}>
       <h2 style={{margin:"0 0 4px",fontSize:22,fontFamily:"'Crimson Pro',Georgia,serif"}}>Secretary Dashboard</h2>
@@ -869,10 +874,10 @@ function SecretaryView() {
           </button>
         ))}
       </div>
-
+ 
       {tab==="registrations"&&(
         <div style={card}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{marginBottom:12}}>
             <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.muted}}>
               {regs.length} total · {pending(regs)} pending</span>
           </div>
@@ -887,7 +892,7 @@ function SecretaryView() {
                 <div style={{fontWeight:700,fontSize:14,fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>
                   {r.first_name} {r.surname}</div>
                 <div style={{fontSize:11,color:C.muted,fontFamily:"'DM Sans',sans-serif"}}>
-                  {r.team} · {r.submitted_at?.slice(0,10)}</div>
+                  {r.team} · {r.age_group} · {r.submitted_at?.slice(0,10)}</div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <Bdg s={r.status}/><span style={{color:C.muted,fontSize:18}}>›</span>
@@ -896,10 +901,10 @@ function SecretaryView() {
           ))}
         </div>
       )}
-
+ 
       {tab==="orders"&&(
         <div style={card}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{marginBottom:12}}>
             <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:C.muted}}>
               {orders.length} total · {pending(orders)} pending</span>
           </div>
@@ -923,45 +928,42 @@ function SecretaryView() {
           ))}
         </div>
       )}
-
+ 
       {selReg&&<RegDetail reg={selReg} onClose={()=>setSelReg(null)} onToggle={toggleReg}/>}
       {selOrd&&<OrderDetail order={selOrd} onClose={()=>setSelOrd(null)} onToggle={toggleOrd}/>}
     </div>
   );
 }
-
+ 
 // ── Root ───────────────────────────────────────────────────────
 export default function App() {
   const [user,setUser]=useState(null);
   const [active,setActive]=useState("dashboard");
   const [checking,setChecking]=useState(true);
-
-  // Restore session on page load
-useEffect(()=>{
+ 
+  useEffect(()=>{
     sb.auth.getSession().then(async({data:{session}})=>{
       if(session){
         try {
-          const {data:profile, error:pErr}=await sb.rpc("get_my_profile");
+          const {data:profile,error:pErr}=await sb.rpc("get_my_profile");
           if(pErr||!profile){ setChecking(false); return; }
-          setUser({id:session.user.id, name:profile.name, role:profile.role,
-            isSecretary:profile.is_secretary, teams:profile.teams||[]});
-        } catch(e){
-          console.error("Session restore failed:",e);
-        }
+          setUser({id:session.user.id,name:profile.name,role:profile.role,
+            isSecretary:profile.is_secretary,teams:profile.teams||[]});
+        } catch(e){ console.error("Session restore failed:",e); }
       }
       setChecking(false);
     });
   },[]);
-
+ 
   const handleLogout=async()=>{ await sb.auth.signOut(); setUser(null); };
-
+ 
   if(checking) return (
     <div style={{minHeight:"100vh",background:`linear-gradient(160deg,${C.navy} 0%,#060e1c 100%)`,
       display:"flex",alignItems:"center",justifyContent:"center"}}>
       <Crest size={64} glow/>
     </div>
   );
-
+ 
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
