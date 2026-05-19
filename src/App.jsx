@@ -221,15 +221,13 @@ function LoginScreen({onLogin}) {
     const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
     if(error){ setErr(error.message); setLoading(false); return; }
 
-    const {data:profile, error:pErr}=await sb.from("profiles").select("*").eq("id",data.user.id).single();
+    const {data:profile, error:pErr}=await sb.rpc("get_my_profile");
     if(pErr||!profile){
-      setErr(`Profile not found. Supabase error: ${pErr?.message||"unknown"}`);
+      setErr(`Profile error: ${pErr?.message||"unknown"}`);
       setLoading(false); return;
     }
-    const {data:teamRows}=await sb.from("profile_teams").select("team").eq("profile_id",data.user.id);
-    const teams=(teamRows||[]).map(r=>r.team);
     onLogin({id:data.user.id, name:profile.name, role:profile.role,
-      isSecretary:profile.is_secretary, teams});
+      isSecretary:profile.is_secretary, teams:profile.teams||[]});
     setLoading(false);
   };
 
@@ -939,16 +937,14 @@ export default function App() {
   const [checking,setChecking]=useState(true);
 
   // Restore session on page load
-  useEffect(()=>{
+useEffect(()=>{
     sb.auth.getSession().then(async({data:{session}})=>{
       if(session){
         try {
-          const {data:profile, error:pErr}=await sb.from("profiles").select("*").eq("id",session.user.id).single();
+          const {data:profile, error:pErr}=await sb.rpc("get_my_profile");
           if(pErr||!profile){ setChecking(false); return; }
-          const {data:teamRows}=await sb.from("profile_teams").select("team").eq("profile_id",session.user.id);
-          const teams=(teamRows||[]).map(r=>r.team);
-          setUser({id:session.user.id,name:profile.name,role:profile.role,
-            isSecretary:profile.is_secretary,teams});
+          setUser({id:session.user.id, name:profile.name, role:profile.role,
+            isSecretary:profile.is_secretary, teams:profile.teams||[]});
         } catch(e){
           console.error("Session restore failed:",e);
         }
