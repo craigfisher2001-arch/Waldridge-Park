@@ -69,8 +69,8 @@ const C = {
 const inp = { width:"100%", background:C.input, border:`1px solid ${C.border}`,
   borderRadius:8, padding:"11px 14px", color:C.white, fontSize:15,
   fontFamily:"'DM Sans',sans-serif", outline:"none", boxSizing:"border-box" };
-// Date inputs need color-scheme:dark so the calendar icon renders white
-const dateInp = { ...inp, colorScheme:"dark", overflow:"hidden" };
+// Date inputs: color-scheme:dark = white calendar icon, height matches other inputs
+const dateInp = { ...inp, colorScheme:"dark", height:46, padding:"0 14px" };
 const sel = { ...inp, appearance:"none" };
 const btn = { background:`linear-gradient(135deg,${C.royal},${C.bright})`, color:C.white,
   border:"none", borderRadius:10, padding:"13px 24px", fontSize:15, fontWeight:700,
@@ -997,17 +997,26 @@ function MySubmissionsView({user, initialTab="registrations"}) {
   const [selOrd, setSelOrd] = useState(null);
 
   useEffect(()=>{
-    sb.from("registrations").select("*")
-      .eq("submitted_by", user.id)
-      .order("submitted_at", {ascending:false})
-      .then(({data})=>{ setRegs(data||[]); setLoadingRegs(false); });
+    // Use RPC (security definer) to bypass RLS, then filter to this user's submissions
+    if (user.isSecretary) {
+      sb.rpc("get_all_registrations").then(({data})=>{ setRegs(data||[]); setLoadingRegs(false); });
+    } else {
+      sb.rpc("get_all_registrations").then(({data})=>{
+        setRegs((data||[]).filter(r=>r.submitted_by===user.id));
+        setLoadingRegs(false);
+      });
+    }
   },[user.id]);
 
   useEffect(()=>{
-    sb.from("kit_orders").select("*, kit_order_items(*)")
-      .eq("submitted_by", user.id)
-      .order("submitted_at", {ascending:false})
-      .then(({data})=>{ setOrders(data||[]); setLoadingOrders(false); });
+    if (user.isSecretary) {
+      sb.rpc("get_all_kit_orders").then(({data})=>{ setOrders(data||[]); setLoadingOrders(false); });
+    } else {
+      sb.rpc("get_all_kit_orders").then(({data})=>{
+        setOrders((data||[]).filter(o=>o.submitted_by===user.id));
+        setLoadingOrders(false);
+      });
+    }
   },[user.id]);
 
   const pending = list => list.filter(i=>i.status==="pending").length;
