@@ -31,32 +31,8 @@ const AGE_GROUPS = ["U7s","U8s","U9s","U10s","U11s","U12s","U13s","U14s",
   "U15s","U16s","U17s","U18s","Adults","Superstars"];
 const GENDERS = ["Male","Female","Prefer not to say"];
 const NATIONALITIES = ["British","English","Scottish","Welsh","Irish","Other"];
-const KIT_SIZES = ["XS","S","SY","Y","S-M","L","XL","XXL"];
 
-// #14 — brand labels added
-const EQUIPMENT_ITEMS = [
-  { id:"train_ball",   name:"Training Balls", brand:"Mitre",   sizes:["Size 3","Size 4","Size 5"], personalisation:null },
-  { id:"match_ball",   name:"Match Balls",    brand:"Nike",    sizes:["Size 3","Size 4","Size 5"], personalisation:null },
-  { id:"first_aid",    name:"1st Aid Kit",    brand:"Various", sizes:null, personalisation:null },
-  { id:"ball_pump",    name:"Ball Pump",      brand:"Various", sizes:null, personalisation:null },
-  { id:"cones",        name:"Cones",          brand:"Various", sizes:null, personalisation:null },
-  { id:"ball_bag",     name:"Ball Bag",       brand:"Various", sizes:null, personalisation:null },
-  { id:"corner_flags", name:"Corner Flags",   brand:"Various", sizes:null, personalisation:null, u13above:true },
-  { id:"nets",         name:"Nets",           brand:"Various", sizes:null, personalisation:null, u13above:true },
-  { id:"bibs",         name:"Bibs",           brand:"Various", sizes:["S","M","L","XL"], personalisation:null },
-];
-
-const KIT_ITEMS = [
-  { id:"home_shirt",   name:"Home Shirt",    brand:"Pendle", personalisation:"squad_required" },
-  { id:"home_shorts",  name:"Home Shorts",   brand:"Pendle", personalisation:null },
-  { id:"gk_shirt",     name:"GK Shirt",      brand:"Pendle", personalisation:"gk_squad" },
-  { id:"away_shirt",   name:"Away Shirt",    brand:"Pendle", personalisation:"squad_required" },
-  { id:"rain_jacket",  name:"Rain Jacket",   brand:"Pendle", personalisation:"optional" },
-  { id:"jumper",       name:"Jumper",        brand:"Pendle", personalisation:"optional" },
-  { id:"coach_jacket", name:"Coach Jacket",  brand:"Pendle", personalisation:"initials_optional" },
-  { id:"coach_jumper", name:"Coach Jumper",  brand:"Pendle", personalisation:"initials_optional" },
-  { id:"coach_tshirt", name:"Coach T-Shirt", brand:"Pendle", personalisation:"initials_optional" },
-];
+// Kit/equipment items now loaded from Supabase catalogue table
 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
@@ -571,7 +547,6 @@ function RegistrationForm({user}) {
 
 // ── Kit order form ─────────────────────────────────────────────
 function KitOrderForm({user}) {
-  // #11 — kit tab first
   const [tab, setTab] = useState("kit");
   const [ageGroup, setAgeGroup] = useState("");
   const [team, setTeam] = useState(user.teams[0]||"");
@@ -583,7 +558,15 @@ function KitOrderForm({user}) {
   const [modal, setModal] = useState(null);
   const [mSize, setMSize] = useState("");
   const [mQty, setMQty] = useState(1);
+  const [catalogue, setCatalogue] = useState([]);
   const teamOpts = user.isSecretary ? TEAMS : user.teams;
+
+  useEffect(()=>{
+    sb.rpc("get_catalogue").then(({data})=>{ setCatalogue(data||[]); });
+  },[]);
+
+  const kitItems = catalogue.filter(i=>i.category==="kit");
+  const equipItems = catalogue.filter(i=>i.category==="equipment");
 
   const openModal = (type, item) => { setModal({type, item}); setMSize(""); setMQty(1); };
 
@@ -724,16 +707,15 @@ function KitOrderForm({user}) {
       </div>
 
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14}}>
-        {(tab==="equipment"?EQUIPMENT_ITEMS:KIT_ITEMS).map(item=>(
+        {(tab==="equipment"?equipItems:kitItems).map(item=>(
           <button key={item.id} onClick={()=>openModal(tab,item)}
             style={{background:C.input, border:`1px solid ${C.border}`, borderRadius:12,
               padding:13, color:C.white, cursor:"pointer", textAlign:"left", fontFamily:"'DM Sans',sans-serif"}}>
             <div style={{fontSize:13, fontWeight:700, marginBottom:2}}>{item.name}</div>
-            {/* #14 — brand label */}
             <div style={{fontSize:10, color:C.royal, fontWeight:700, marginBottom:4, textTransform:"uppercase",
               letterSpacing:"0.06em"}}>{item.brand}</div>
             <div style={{fontSize:10, color:C.muted, marginBottom:6}}>
-              {item.sizes?item.sizes.join(" · "):tab==="kit"?"XS S SY Y S-M L XL XXL":"No size"}
+              {item.sizes ? item.sizes.join(" · ") : "No size"}
               {item.u13above?" · U13+":""}</div>
             {item.personalisation==="squad_required"&&
               <div style={{fontSize:10, color:C.warn, fontWeight:700}}>⚠ Squad no. required</div>}
@@ -744,6 +726,10 @@ function KitOrderForm({user}) {
             <div style={{marginTop:8, fontSize:11, color:C.royal, fontWeight:700}}>+ Add to order</div>
           </button>
         ))}
+        {catalogue.length===0&&(
+          <div style={{gridColumn:"1/-1", color:C.muted, fontFamily:"'DM Sans',sans-serif",
+            fontSize:13, padding:"20px 0", textAlign:"center"}}>Loading catalogue…</div>
+        )}
       </div>
 
       {items.length>0&&(
@@ -818,11 +804,11 @@ function KitOrderForm({user}) {
                 Add {modal.item.name}</div>
             </div>
             <div style={{padding:"18px 18px 8px"}}>
-              {(modal.item.sizes||modal.type==="kit")&&(
+              {modal.item.sizes&&modal.item.sizes.length>0&&(
                 <F label="Size">
                   <select style={sel} value={mSize} onChange={e=>setMSize(e.target.value)}>
                     <option value="">Select size...</option>
-                    {(modal.item.sizes||KIT_SIZES).map(sz=><option key={sz}>{sz}</option>)}
+                    {modal.item.sizes.map(sz=><option key={sz}>{sz}</option>)}
                   </select>
                 </F>
               )}
@@ -1136,6 +1122,15 @@ function MySubmissionsView({user, initialTab="registrations"}) {
 }
 
 // ── Secretary dashboard ────────────────────────────────────────
+const EMPTY_ITEM = { name:"", category:"kit", brand:"Pendle", sizes:"", personalisation:"", u13above:false };
+const PERSONALISATION_OPTS = [
+  {value:"",                 label:"None"},
+  {value:"squad_required",   label:"Squad number (required)"},
+  {value:"gk_squad",         label:"Squad number — GK default 1"},
+  {value:"optional",         label:"Squad number (optional)"},
+  {value:"initials_optional",label:"Initials (optional)"},
+];
+
 function SecretaryView() {
   const [tab, setTab] = useState("registrations");
   const [regs, setRegs] = useState([]);
@@ -1145,6 +1140,18 @@ function SecretaryView() {
   const [selReg, setSelReg] = useState(null);
   const [selOrd, setSelOrd] = useState(null);
 
+  // Catalogue state
+  const [catalogue, setCatalogue] = useState([]);
+  const [loadingCat, setLoadingCat] = useState(true);
+  const [editItem, setEditItem] = useState(null);  // null = closed, {} = new, {id,...} = editing
+  const [catErr, setCatErr] = useState("");
+  const [catSaving, setCatSaving] = useState(false);
+
+  const loadCatalogue = () => {
+    setLoadingCat(true);
+    sb.rpc("get_catalogue").then(({data})=>{ setCatalogue(data||[]); setLoadingCat(false); });
+  };
+
   useEffect(()=>{
     sb.rpc("get_all_registrations").then(({data})=>{ setRegs(data||[]); setLoadingRegs(false); });
   },[]);
@@ -1152,6 +1159,8 @@ function SecretaryView() {
   useEffect(()=>{
     sb.rpc("get_all_kit_orders").then(({data})=>{ setOrders(data||[]); setLoadingOrders(false); });
   },[]);
+
+  useEffect(()=>{ loadCatalogue(); },[]);
 
   const toggleReg = async (id, currentStatus) => {
     const newStatus = currentStatus==="pending"?"actioned":"pending";
@@ -1165,7 +1174,43 @@ function SecretaryView() {
     setOrders(prev=>prev.map(o=>o.id===id?{...o,status:newStatus}:o));
   };
 
+  const saveItem = async () => {
+    if (!editItem.name.trim()) { setCatErr("Name is required."); return; }
+    setCatErr(""); setCatSaving(true);
+    const sizesArr = editItem.sizes
+      ? editItem.sizes.split(",").map(s=>s.trim()).filter(Boolean)
+      : null;
+    const payload = {
+      id: editItem.id||null,
+      name: editItem.name.trim(),
+      category: editItem.category,
+      brand: editItem.brand||"Various",
+      sizes: sizesArr&&sizesArr.length>0 ? sizesArr : null,
+      personalisation: editItem.personalisation||null,
+      u13above: !!editItem.u13above,
+      sort_order: editItem.sort_order||0,
+    };
+    await sb.rpc("upsert_catalogue_item", {payload: JSON.stringify(payload)});
+    setCatSaving(false);
+    setEditItem(null);
+    loadCatalogue();
+  };
+
+  const deleteItem = async (id) => {
+    if (!window.confirm("Remove this item from the catalogue?")) return;
+    await sb.rpc("delete_catalogue_item", {item_id: id});
+    loadCatalogue();
+  };
+
   const pending = list => list.filter(i=>i.status==="pending").length;
+  const catKit = catalogue.filter(i=>i.category==="kit");
+  const catEquip = catalogue.filter(i=>i.category==="equipment");
+
+  const tabList = [
+    {id:"registrations", label:`Registrations${pending(regs)>0?` (${pending(regs)})`:""}` },
+    {id:"orders",        label:`Orders${pending(orders)>0?` (${pending(orders)})`:""}` },
+    {id:"catalogue",     label:"Catalogue"},
+  ];
 
   return (
     <div style={{padding:18}}>
@@ -1173,13 +1218,12 @@ function SecretaryView() {
       <p style={{margin:"0 0 18px", color:C.muted, fontFamily:"'DM Sans',sans-serif", fontSize:13}}>Tap any row to view full details.</p>
       <div style={{display:"flex", gap:4, marginBottom:14, background:C.card, borderRadius:10,
         padding:4, border:`1px solid ${C.border}`}}>
-        {[{id:"registrations",label:`Registrations${pending(regs)>0?` (${pending(regs)})`:""}`,},
-          {id:"orders",label:`Orders${pending(orders)>0?` (${pending(orders)})`:""}`,}].map(t=>(
+        {tabList.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{flex:1, padding:"9px 0", borderRadius:8, border:"none",
               background:tab===t.id?`linear-gradient(135deg,${C.royal},${C.bright})`:"transparent",
               color:tab===t.id?C.white:C.muted, fontFamily:"'DM Sans',sans-serif",
-              fontSize:13, fontWeight:700, cursor:"pointer"}}>
+              fontSize:12, fontWeight:700, cursor:"pointer"}}>
             {t.label}
           </button>
         ))}
@@ -1242,6 +1286,104 @@ function SecretaryView() {
 
       {selReg&&<RegDetail reg={selReg} onClose={()=>setSelReg(null)} onToggle={toggleReg}/>}
       {selOrd&&<OrderDetail order={selOrd} onClose={()=>setSelOrd(null)} onToggle={toggleOrd}/>}
+
+      {tab==="catalogue"&&(
+        <div>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
+            <span style={{fontFamily:"'DM Sans',sans-serif", fontSize:12, color:C.muted}}>
+              {catalogue.length} items</span>
+            <button style={{...btn, padding:"9px 16px", fontSize:13}}
+              onClick={()=>setEditItem({...EMPTY_ITEM})}>+ Add Item</button>
+          </div>
+
+          {loadingCat?<Spinner/>:[
+            {label:"Kit", items:catKit},
+            {label:"Equipment", items:catEquip},
+          ].map(group=>(
+            <div key={group.label} style={{...card, marginBottom:14}}>
+              <div style={secHead}>{group.label}</div>
+              {group.items.map(item=>(
+                <div key={item.id} style={{display:"flex", alignItems:"center", justifyContent:"space-between",
+                  padding:"10px 0", borderBottom:`1px solid ${C.border}`}}>
+                  <div>
+                    <div style={{fontWeight:700, fontSize:14, fontFamily:"'DM Sans',sans-serif"}}>{item.name}</div>
+                    <div style={{fontSize:11, color:C.muted, fontFamily:"'DM Sans',sans-serif", marginTop:2}}>
+                      {item.brand}
+                      {item.sizes&&item.sizes.length>0?` · ${item.sizes.join(", ")}`:" · No size"}
+                      {item.u13above?" · U13+":""}
+                      {item.personalisation?` · ${item.personalisation}`:""}
+                    </div>
+                  </div>
+                  <div style={{display:"flex", gap:8, flexShrink:0}}>
+                    <button onClick={()=>setEditItem({
+                      ...item,
+                      sizes: item.sizes ? item.sizes.join(", ") : "",
+                      personalisation: item.personalisation||"",
+                    })}
+                      style={{background:C.royal, border:"none", color:C.white, borderRadius:7,
+                        padding:"5px 12px", fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif"}}>
+                      Edit
+                    </button>
+                    <button onClick={()=>deleteItem(item.id)}
+                      style={{background:"transparent", border:`1px solid ${C.danger}`, color:C.danger,
+                        borderRadius:7, padding:"5px 12px", fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif"}}>
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {group.items.length===0&&(
+                <div style={{color:C.muted, fontFamily:"'DM Sans',sans-serif", fontSize:13, padding:"8px 0"}}>
+                  No items.</div>
+              )}
+            </div>
+          ))}
+
+          {/* Add / Edit modal */}
+          {editItem&&(
+            <Modal title={editItem.id?"Edit Item":"Add Item"} onClose={()=>{setEditItem(null);setCatErr("");}}>
+              <ErrBanner msg={catErr}/>
+              <F label="Name">
+                <input style={inp} value={editItem.name}
+                  onChange={e=>setEditItem(p=>({...p,name:e.target.value}))}/>
+              </F>
+              <F label="Category">
+                <select style={sel} value={editItem.category}
+                  onChange={e=>setEditItem(p=>({...p,category:e.target.value}))}>
+                  <option value="kit">Kit</option>
+                  <option value="equipment">Equipment</option>
+                </select>
+              </F>
+              <F label="Brand">
+                <input style={inp} value={editItem.brand}
+                  onChange={e=>setEditItem(p=>({...p,brand:e.target.value}))}/>
+              </F>
+              <F label="Sizes (comma separated, leave blank if no size)">
+                <input style={inp} value={editItem.sizes}
+                  placeholder='e.g. XS, S, M, L or "Size 3, Size 4, Size 5"'
+                  onChange={e=>setEditItem(p=>({...p,sizes:e.target.value}))}/>
+              </F>
+              <F label="Personalisation">
+                <select style={sel} value={editItem.personalisation}
+                  onChange={e=>setEditItem(p=>({...p,personalisation:e.target.value}))}>
+                  {PERSONALISATION_OPTS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </F>
+              <label style={{display:"flex", alignItems:"center", gap:10, marginBottom:20,
+                fontFamily:"'DM Sans',sans-serif", fontSize:14, color:C.silver, cursor:"pointer"}}>
+                <input type="checkbox" checked={!!editItem.u13above}
+                  onChange={e=>setEditItem(p=>({...p,u13above:e.target.checked}))}
+                  style={{width:18, height:18, accentColor:C.royal}}/>
+                U13 and above only
+              </label>
+              <button style={{...btn, width:"100%", opacity:catSaving?0.6:1}}
+                onClick={saveItem} disabled={catSaving}>
+                {catSaving?"Saving…":"Save Item"}
+              </button>
+            </Modal>
+          )}
+        </div>
+      )}
     </div>
   );
 }
