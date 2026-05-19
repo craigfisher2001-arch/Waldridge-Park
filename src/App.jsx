@@ -297,30 +297,37 @@ function DashboardView({user, setActive}) {
   const [stats, setStats] = useState({pendingRegs:0, pendingOrders:0});
 
   useEffect(()=>{
+    // Use RPC to avoid RLS permission issues on direct table queries
     async function load() {
-      if (user.isSecretary) {
-        const [{count:r},{count:o}] = await Promise.all([
-          sb.from("registrations").select("*",{count:"exact",head:true}).eq("status","pending"),
-          sb.from("kit_orders").select("*",{count:"exact",head:true}).eq("status","pending"),
-        ]);
-        setStats({pendingRegs:r||0, pendingOrders:o||0});
-      } else {
-        const [{count:r},{count:o}] = await Promise.all([
-          sb.from("registrations").select("*",{count:"exact",head:true}).eq("submitted_by",user.id).eq("status","pending"),
-          sb.from("kit_orders").select("*",{count:"exact",head:true}).eq("submitted_by",user.id).eq("status","pending"),
-        ]);
-        setStats({pendingRegs:r||0, pendingOrders:o||0});
-      }
+      const [{data:regs},{data:orders}] = await Promise.all([
+        sb.rpc("get_my_pending_counts", {uid: user.id, is_sec: user.isSecretary}),
+        sb.rpc("get_my_pending_counts", {uid: user.id, is_sec: user.isSecretary}),
+      ]);
+      // Simpler: just fetch all registrations and orders via existing RPCs and count
+      const [rData, oData] = await Promise.all([
+        user.isSecretary
+          ? sb.rpc("get_all_registrations")
+          : sb.from("registrations").select("id,status").eq("submitted_by",user.id),
+        user.isSecretary
+          ? sb.rpc("get_all_kit_orders")
+          : sb.from("kit_orders").select("id,status").eq("submitted_by",user.id),
+      ]);
+      const recs = rData.data || [];
+      const ords = oData.data || [];
+      setStats({
+        pendingRegs: recs.filter(r=>r.status==="pending").length,
+        pendingOrders: ords.filter(o=>o.status==="pending").length,
+      });
     }
     load();
   },[user]);
 
-  // #4 — stat tiles navigate to my submissions view
+  // #4 — each tile navigates to the correct tab in My Submissions
   const statTiles = [
-    {label:"Pending Regs",    value:stats.pendingRegs,    color:C.warn,    action:()=>setActive("mysubmissions")},
-    {label:"Pending Orders",  value:stats.pendingOrders,  color:C.royal,   action:()=>setActive("mysubmissions")},
-    {label:"Your Teams",      value:user.teams.length,    color:C.success, action:null},
-    {label:"Season",          value:currentSeason(),      color:C.silver,  action:null},
+    {label:"Pending Regs",   value:stats.pendingRegs,   color:C.warn,    action:()=>setActive("mysubmissions_regs")},
+    {label:"Pending Orders", value:stats.pendingOrders, color:C.royal,   action:()=>setActive("mysubmissions_orders")},
+    {label:"Your Teams",     value:user.teams.length,   color:C.success, action:null},
+    {label:"Season",         value:currentSeason(),     color:C.silver,  action:null},
   ];
 
   return (
@@ -468,10 +475,12 @@ function RegistrationForm({user}) {
           <F label="Postcode">
             <input style={inp} value={form.postcode} onChange={e=>set("postcode",e.target.value.toUpperCase())}/>
           </F>
-          {/* #5 #10 — date input full width, white calendar icon */}
+          {/* #5 #10 — date input clipped by wrapper to prevent mobile overflow */}
           <F label="Date of Birth">
-            <input style={dateInp} type="date"
-              value={form.dob} onChange={e=>set("dob",e.target.value)}/>
+            <div style={{overflow:"hidden", borderRadius:8}}>
+              <input style={dateInp} type="date"
+                value={form.dob} onChange={e=>set("dob",e.target.value)}/>
+            </div>
           </F>
         </div>
         <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
@@ -491,10 +500,12 @@ function RegistrationForm({user}) {
 
       <Section title="Parent / Guardian">
         <F label="Full Name"><input style={inp} value={form.parentName} onChange={e=>set("parentName",e.target.value)}/></F>
-        {/* #7 — date input full width, white calendar icon */}
+        {/* #7 — date input clipped by wrapper to prevent mobile overflow */}
         <F label="Date of Birth">
-          <input style={dateInp} type="date"
-            value={form.parentDob} onChange={e=>set("parentDob",e.target.value)}/>
+          <div style={{overflow:"hidden", borderRadius:8}}>
+            <input style={dateInp} type="date"
+              value={form.parentDob} onChange={e=>set("parentDob",e.target.value)}/>
+          </div>
         </F>
         <F label="Email Address"><input style={inp} type="email" value={form.parentEmail} onChange={e=>set("parentEmail",e.target.value)}/></F>
         <F label="Contact Number"><input style={inp} type="tel" value={form.parentPhone} onChange={e=>set("parentPhone",e.target.value)}/></F>
@@ -976,8 +987,8 @@ function OrderDetail({order, onClose, onToggle}) {
 }
 
 // ── My Submissions (coach view) ───────────────────────────────
-function MySubmissionsView({user}) {
-  const [tab, setTab] = useState("registrations");
+function MySubmissionsView({user, initialTab="registrations"}) {
+  const [tab, setTab] = useState(initialTab);
   const [regs, setRegs] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loadingRegs, setLoadingRegs] = useState(true);
@@ -1268,6 +1279,8 @@ export default function App() {
               {active==="dashboard"&&<DashboardView user={user} setActive={setActive}/>}
               {active==="registration"&&<RegistrationForm user={user}/>}
               {active==="kitorder"&&<KitOrderForm user={user}/>}
+              {active==="mysubmissions_regs"&&<MySubmissionsView user={user} initialTab="registrations"/>}
+              {active==="mysubmissions_orders"&&<MySubmissionsView user={user} initialTab="orders"/>}
               {active==="mysubmissions"&&<MySubmissionsView user={user}/>}
               {active==="secretary"&&user.isSecretary&&<SecretaryView/>}
             </main>
