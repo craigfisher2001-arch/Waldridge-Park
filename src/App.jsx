@@ -543,6 +543,7 @@ function KitOrderForm({user}) {
   const [team, setTeam] = useState(user.teams[0]||"");
   const [items, setItems] = useState([]);
   const [special, setSpecial] = useState("");
+  const [sponsor, setSponsor] = useState("");
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -620,6 +621,7 @@ function KitOrderForm({user}) {
     try {
       const {error} = await sb.rpc("submit_kit_order", {payload:{
         team, age_group:ageGroup, special_request:special,
+        sponsor_name:sponsor||null,
         items:items.map(i=>({
           item_name:i.name, size:i.size||null, qty:i.qty,
           personalisation_type:i.personalisation||null,
@@ -641,7 +643,7 @@ function KitOrderForm({user}) {
       <h2 style={{margin:"0 0 8px", fontFamily:"'Crimson Pro',Georgia,serif", fontSize:22}}>Order Submitted</h2>
       <p style={{color:C.muted, fontFamily:"'DM Sans',sans-serif", fontSize:14}}>
         Kit order for {team} sent to secretary.</p>
-      <button style={{...btn, marginTop:22}} onClick={()=>{setDone(false);setItems([]);setSpecial("");}}>New Order</button>
+      <button style={{...btn, marginTop:22}} onClick={()=>{setDone(false);setItems([]);setSpecial("");setSponsor("");}}>New Order</button>
     </div>
   );
 
@@ -794,6 +796,17 @@ function KitOrderForm({user}) {
           ))}
         </div>
       )}
+
+      <div style={{...card, marginBottom:14}}>
+        <F label="Sponsor Name (if applicable)" mb={8}>
+          <input style={inp} value={sponsor}
+            onChange={e=>setSponsor(e.target.value)}
+            placeholder="e.g. Acme Plumbing Ltd"/>
+        </F>
+        <div style={{fontSize:12, color:C.muted, fontFamily:"'DM Sans',sans-serif", lineHeight:1.5}}>
+          📧 Please email me your sponsor's logo if you have one — <span style={{color:C.bright}}>craigfisher2001@hotmail.com</span>
+        </div>
+      </div>
 
       <div style={{...card, marginBottom:22}}>
         <F label="Special Requests / Notes" mb={0}>
@@ -955,6 +968,12 @@ function OrderDetail({order, onClose, onToggle}) {
         <div style={secHead}>Details</div>
         <div style={{fontFamily:"'DM Sans',sans-serif", fontSize:13, color:C.muted, marginBottom:4}}>
           Contact: <span style={{color:C.offwhite}}>{order.submitter_name||"—"}</span></div>
+        {order.sponsor_name&&(
+          <div style={{fontFamily:"'DM Sans',sans-serif", fontSize:13, color:C.muted, marginTop:6}}>
+            Sponsor: <span style={{color:C.offwhite, fontWeight:700}}>{order.sponsor_name}</span>
+            <span style={{fontSize:11, color:C.muted, marginLeft:6}}>(logo required by email)</span>
+          </div>
+        )}
         {order.special_request&&(
           <div style={{marginTop:9, padding:10, background:C.input, borderRadius:8,
             border:`1px solid ${C.border}`, fontSize:13, fontFamily:"'DM Sans',sans-serif", color:C.silver}}>
