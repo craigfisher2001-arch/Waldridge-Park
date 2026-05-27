@@ -320,6 +320,9 @@ function DashboardView({user, setActive}) {
           </div>
         ))}
       </div>
+      {/* Squad check banner — shows if there's an active check for this coach's teams */}
+      <SquadCheckCoachView user={user} setActive={setActive}/>
+
       <div style={{display:"flex", flexDirection:"column", gap:10}}>
         {[
           {id:"registration", icon:"✚", title:"New Registration", desc:"Register a player for your team"},
@@ -1257,6 +1260,7 @@ function SecretaryView() {
     {id:"registrations", label:`Registrations${pending(regs)>0?` (${pending(regs)})`:""}` },
     {id:"orders",        label:`Orders${pending(orders)>0?` (${pending(orders)})`:""}` },
     {id:"catalogue",     label:"Catalogue"},
+    {id:"squadcheck",    label:"Squad Check"},
   ];
 
   return (
@@ -1333,6 +1337,8 @@ function SecretaryView() {
 
       {selReg&&<RegDetail reg={selReg} onClose={()=>setSelReg(null)} onToggle={toggleReg}/>}
       {selOrd&&<OrderDetail order={selOrd} onClose={()=>setSelOrd(null)} onToggle={toggleOrd}/>}
+
+      {tab==="squadcheck"&&<SquadCheckSecretaryView setActive={()=>{}}/>}
 
       {tab==="catalogue"&&(
         <div>
@@ -1442,6 +1448,339 @@ function SecretaryView() {
   );
 }
 
+// ── Squad check helpers ────────────────────────────────────────
+function nextSquadCheckDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const aug = new Date(year, 7, 1);   // Aug 1
+  const mar = new Date(year, 2, 1);   // Mar 1
+  const nextAug = now < aug ? aug : new Date(year+1, 7, 1);
+  const nextMar = now < mar ? mar : new Date(year+1, 2, 1);
+  return nextAug < nextMar ? nextAug : nextMar;
+}
+
+// Extract short team name from FA full team string
+// e.g. "Chester Le Street Waldridge Park Juniors U13 Aberwick" → "Aberwick"
+function extractTeamName(faTeamStr) {
+  if (!faTeamStr) return "";
+  // Known team names to match against
+  const known = ["Superstars","Fenwick","Ingram","Bowmont","Hawkhill","Portland",
+    "Ashgrove","Glanton","Longburn","Hauxley","Grasmere","Aberwick","Lions","Dunstan",
+    "Auckland","Netherton","Lomond","Lumley","Firsts","Reserves",
+    "Chester Town Lions"]; // FA uses this for Lions
+  for (const t of known) {
+    if (faTeamStr.includes(t)) return t === "Chester Town Lions" ? "Lions" : t;
+  }
+  // Fallback: last word
+  const parts = faTeamStr.trim().split(" ");
+  return parts[parts.length-1];
+}
+
+// Parse Excel serial date to JS Date
+function excelDateToISO(serial) {
+  if (!serial || isNaN(serial)) return null;
+  // Excel epoch is Jan 1 1900, JS epoch is Jan 1 1970
+  const utc = (serial - 25569) * 86400 * 1000;
+  const d = new Date(utc);
+  if (isNaN(d)) return null;
+  return d.toISOString().slice(0,10);
+}
+
+// ── Squad Check — Secretary Upload View ───────────────────────
+function SquadCheckSecretaryView({setActive}) {
+  const [checks, setChecks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+  const [selCheck, setSelCheck] = useState(null);
+  const [flags, setFlags] = useState([]);
+  const [loadingFlags, setLoadingFlags] = useState(false);
+  const fileRef = useRef();
+
+  useEffect(()=>{
+    sb.rpc("get_all_squad_checks").then(({data})=>{ setChecks(data||[]); setLoading(false); });
+  },[]);
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setErr(""); setUploading(true);
+    try {
+      // Read xlsx using SheetJS
+      const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, {type:"array"});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:""});
+
+      // Parse players — filter out Cancelled, map columns
+      const players = rows
+        .filter(r => (r["Registration status"]||"").toLowerCase() !== "cancelled")
+        .map(r => ({
+          team: extractTeamName(r["Team"]||""),
+          first_name: (r["First names"]||"").trim(),
+          surname: (r["Surname"]||"").trim(),
+          dob: excelDateToISO(r["Date of birth"]),
+          age_group: r["Age Group"] ? `U${r["Age Group"]}s` : "",
+          fa_status: r["Registration status"]||"",
+        }))
+        .filter(p => p.team && p.first_name && p.surname);
+
+      if (players.length === 0) {
+        setErr("No valid players found in the file. Please check the format.");
+        setUploading(false); return;
+      }
+
+      const {data:checkId, error} = await sb.rpc("create_squad_check", {players});
+      if (error) throw error;
+
+      // Reload checks
+      const {data} = await sb.rpc("get_all_squad_checks");
+      setChecks(data||[]);
+      setUploading(false);
+      alert(`Squad check created with ${players.length} players. Coaches will see it when they next log in.`);
+    } catch(e) {
+      setErr(e.message||"Failed to process file.");
+      setUploading(false);
+    }
+    e.target.value = "";
+  };
+
+  const viewFlags = async (check) => {
+    setSelCheck(check);
+    setLoadingFlags(true);
+    const {data} = await sb.rpc("get_squad_check_flags", {p_squad_check_id: check.id});
+    setFlags(data||[]);
+    setLoadingFlags(false);
+  };
+
+  // Squad check reminder
+  const next = nextSquadCheckDate();
+  const lastCheck = checks.length > 0 ? checks[0] : null;
+
+  return (
+    <div>
+      {/* Reminder banner */}
+      <div style={{background:"rgba(30,79,216,0.12)", border:`1px solid ${C.royal}`,
+        borderRadius:10, padding:"12px 14px", marginBottom:16,
+        fontFamily:"'DM Sans',sans-serif", fontSize:13, color:C.silver, lineHeight:1.6}}>
+        📅 <strong style={{color:C.white}}>Squad Check Reminder</strong><br/>
+        {lastCheck
+          ? <>Last squad check: <strong style={{color:C.white}}>{fmtDate(lastCheck.created_at)}</strong></>
+          : <span>No squad check completed yet.</span>
+        }
+        {" · "}Next due: <strong style={{color:C.warn}}>{next.toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}</strong>
+      </div>
+
+      <ErrBanner msg={err}/>
+
+      {/* Upload button */}
+      <div style={{...card, marginBottom:14}}>
+        <div style={secHead}>Upload FA Extract</div>
+        <p style={{fontFamily:"'DM Sans',sans-serif", fontSize:13, color:C.muted, margin:"0 0 14px", lineHeight:1.6}}>
+          Download the Club Player Report from the FA portal and upload it here to start a new squad check.
+          Only active (non-cancelled) registrations will be included.
+        </p>
+        <button style={{...btn, opacity:uploading?0.6:1}} onClick={()=>fileRef.current.click()} disabled={uploading}>
+          {uploading?"Processing…":"📂 Upload FA Extract (.xlsx)"}
+        </button>
+        <input ref={fileRef} type="file" accept=".xlsx" style={{display:"none"}} onChange={handleFile}/>
+      </div>
+
+      {/* History */}
+      <div style={card}>
+        <div style={secHead}>Squad Check History</div>
+        {loading?<Spinner/>:checks.length===0
+          ?<div style={{color:C.muted, fontFamily:"'DM Sans',sans-serif", fontSize:13}}>No squad checks yet.</div>
+          :checks.map(c=>(
+          <div key={c.id} style={{background:C.input, borderRadius:10, padding:13, marginBottom:8,
+            border:`1px solid ${C.border}`}}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6}}>
+              <div>
+                <div style={{fontWeight:700, fontSize:14, fontFamily:"'DM Sans',sans-serif"}}>
+                  {fmtDate(c.created_at)}</div>
+                <div style={{fontSize:11, color:C.muted, fontFamily:"'DM Sans',sans-serif", marginTop:2}}>
+                  {c.player_count} players · {c.submission_count}/{c.coach_count} coaches responded
+                  {c.left_count>0&&<span style={{color:C.warn}}> · {c.left_count} flagged as left</span>}
+                </div>
+              </div>
+              <div style={{display:"flex", alignItems:"center", gap:8}}>
+                <Bdg s={c.status==="complete"?"actioned":"pending"}/>
+                {c.left_count>0&&(
+                  <button onClick={()=>viewFlags(c)}
+                    style={{background:C.royal, border:"none", color:C.white, borderRadius:7,
+                      padding:"5px 12px", fontSize:12, cursor:"pointer", fontFamily:"'DM Sans',sans-serif"}}>
+                    View Flags
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Flags modal */}
+      {selCheck&&(
+        <Modal title={`Flags — ${fmtDate(selCheck.created_at)}`} onClose={()=>setSelCheck(null)}>
+          {loadingFlags?<Spinner/>:flags.length===0
+            ?<div style={{color:C.muted, fontFamily:"'DM Sans',sans-serif", fontSize:13}}>No flags.</div>
+            :flags.map((f,i)=>(
+            <div key={i} style={{background:C.input, borderRadius:10, padding:12, marginBottom:8,
+              border:`1px solid ${C.danger}`}}>
+              <div style={{fontWeight:700, fontSize:14, fontFamily:"'DM Sans',sans-serif", marginBottom:3}}>
+                {f.first_name} {f.surname}</div>
+              <div style={{fontSize:11, color:C.muted, fontFamily:"'DM Sans',sans-serif"}}>
+                {f.team} · {f.age_group} · DOB: {fmtDate(f.dob)}</div>
+              <div style={{fontSize:11, color:C.danger, fontFamily:"'DM Sans',sans-serif", marginTop:4}}>
+                ⚑ Flagged as left by {f.coach_name} on {fmtDate(f.responded_at)}</div>
+            </div>
+          ))}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── Squad Check — Coach View ───────────────────────────────────
+function SquadCheckCoachView({user, setActive}) {
+  const [check, setCheck] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [responses, setResponses] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(()=>{
+    sb.rpc("get_active_squad_check").then(({data})=>{
+      if (data) {
+        setCheck(data);
+        // Pre-populate existing responses
+        const existing = {};
+        (data.responses||[]).forEach(r => {
+          if (r.coach_id === user.id) existing[r.player_id] = r.response;
+        });
+        setResponses(existing);
+        // Check if already submitted
+        const alreadySubmitted = (data.submissions||[]).some(s => s.coach_id === user.id);
+        if (alreadySubmitted) setDone(true);
+      }
+      setLoading(false);
+    });
+  },[user.id]);
+
+  if (loading) return <Spinner/>;
+  if (!check) return null;
+
+  // Players for this coach's teams only
+  const myPlayers = (check.players||[]).filter(p => user.teams.includes(p.team));
+  if (myPlayers.length === 0) return null;
+
+  const setResponse = async (playerId, team, response) => {
+    setResponses(prev=>({...prev,[playerId]:response}));
+    await sb.rpc("save_squad_response", {
+      p_squad_check_id: check.id,
+      p_player_id: playerId,
+      p_team: team,
+      p_response: response,
+    });
+  };
+
+  const allResponded = myPlayers.every(p => responses[p.id]);
+  const confirmedCount = Object.values(responses).filter(r=>r==="confirmed").length;
+  const leftCount = Object.values(responses).filter(r=>r==="left").length;
+
+  const submitCheck = async () => {
+    if (!allResponded) { setErr("Please respond to all players before submitting."); return; }
+    setErr(""); setSubmitting(true);
+    for (const team of user.teams) {
+      await sb.rpc("submit_squad_check", {p_squad_check_id: check.id, p_team: team});
+    }
+    setDone(true); setSubmitting(false);
+  };
+
+  if (done) return (
+    <div style={{...card, marginBottom:14, textAlign:"center", padding:32}}>
+      <div style={{fontSize:34, marginBottom:12}}>✅</div>
+      <div style={{fontWeight:700, fontSize:16, fontFamily:"'DM Sans',sans-serif", marginBottom:6}}>
+        Squad check submitted</div>
+      <div style={{fontSize:13, color:C.muted, fontFamily:"'DM Sans',sans-serif"}}>
+        Thank you — your responses have been sent to the secretary.</div>
+    </div>
+  );
+
+  return (
+    <div style={{...card, marginBottom:14}}>
+      <div style={secHead}>⚠ Squad Check Required</div>
+      <p style={{fontFamily:"'DM Sans',sans-serif", fontSize:13, color:C.silver, margin:"0 0 14px", lineHeight:1.6}}>
+        Please review the players below registered to your team on the FA portal.
+        Confirm each player is still active, or flag anyone who has left.
+        If a player is missing, use the registration form to register them.
+      </p>
+
+      <div style={{display:"flex", gap:8, marginBottom:14}}>
+        <div style={{flex:1, background:C.input, borderRadius:8, padding:"10px 12px",
+          textAlign:"center", border:`1px solid ${C.border}`}}>
+          <div style={{fontSize:20, fontWeight:700, color:C.success, fontFamily:"'Crimson Pro',Georgia,serif"}}>{confirmedCount}</div>
+          <div style={{fontSize:10, color:C.muted, fontFamily:"'DM Sans',sans-serif"}}>Confirmed</div>
+        </div>
+        <div style={{flex:1, background:C.input, borderRadius:8, padding:"10px 12px",
+          textAlign:"center", border:`1px solid ${C.border}`}}>
+          <div style={{fontSize:20, fontWeight:700, color:C.danger, fontFamily:"'Crimson Pro',Georgia,serif"}}>{leftCount}</div>
+          <div style={{fontSize:10, color:C.muted, fontFamily:"'DM Sans',sans-serif"}}>Flagged as Left</div>
+        </div>
+        <div style={{flex:1, background:C.input, borderRadius:8, padding:"10px 12px",
+          textAlign:"center", border:`1px solid ${C.border}`}}>
+          <div style={{fontSize:20, fontWeight:700, color:C.muted, fontFamily:"'Crimson Pro',Georgia,serif"}}>
+            {myPlayers.length - confirmedCount - leftCount}</div>
+          <div style={{fontSize:10, color:C.muted, fontFamily:"'DM Sans',sans-serif"}}>Remaining</div>
+        </div>
+      </div>
+
+      {myPlayers.map(p=>(
+        <div key={p.id} style={{background:C.input, borderRadius:10, padding:12, marginBottom:8,
+          border:`1px solid ${responses[p.id]==="confirmed"?C.success:responses[p.id]==="left"?C.danger:C.border}`}}>
+          <div style={{fontWeight:700, fontSize:14, fontFamily:"'DM Sans',sans-serif", marginBottom:2}}>
+            {p.first_name} {p.surname}</div>
+          <div style={{fontSize:11, color:C.muted, fontFamily:"'DM Sans',sans-serif", marginBottom:10}}>
+            {p.team} · {p.age_group} · DOB: {fmtDate(p.dob)}</div>
+          <div style={{display:"flex", gap:8}}>
+            <button onClick={()=>setResponse(p.id, p.team, "confirmed")}
+              style={{flex:1, padding:"8px 0", borderRadius:8, border:`1px solid ${C.success}`,
+                background:responses[p.id]==="confirmed"?"rgba(22,163,74,0.2)":"transparent",
+                color:C.success, fontFamily:"'DM Sans',sans-serif", fontSize:13,
+                fontWeight:700, cursor:"pointer"}}>
+              ✓ Still Here
+            </button>
+            <button onClick={()=>setResponse(p.id, p.team, "left")}
+              style={{flex:1, padding:"8px 0", borderRadius:8, border:`1px solid ${C.danger}`,
+                background:responses[p.id]==="left"?"rgba(220,38,38,0.2)":"transparent",
+                color:C.danger, fontFamily:"'DM Sans',sans-serif", fontSize:13,
+                fontWeight:700, cursor:"pointer"}}>
+              ✕ Has Left
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <div style={{marginTop:14, padding:"12px 14px", background:"rgba(30,79,216,0.1)",
+        border:`1px solid ${C.royal}`, borderRadius:8, marginBottom:14,
+        fontFamily:"'DM Sans',sans-serif", fontSize:13, color:C.silver}}>
+        Player missing from this list?{" "}
+        <button onClick={()=>setActive("registration")}
+          style={{background:"none", border:"none", color:C.bright, cursor:"pointer",
+            fontFamily:"'DM Sans',sans-serif", fontSize:13, fontWeight:700, padding:0}}>
+          Submit a new registration →
+        </button>
+      </div>
+
+      <ErrBanner msg={err}/>
+      <button style={{...btn, width:"100%", opacity:(!allResponded||submitting)?0.4:1}}
+        onClick={submitCheck} disabled={!allResponded||submitting}>
+        {submitting?"Submitting…":"Submit Squad Check"}
+      </button>
+    </div>
+  );
+}
+
 // ── Root ───────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
@@ -1488,6 +1827,7 @@ export default function App() {
               {active==="mysubmissions_orders"&&<MySubmissionsView user={user} initialTab="orders"/>}
               {active==="mysubmissions"&&<MySubmissionsView user={user}/>}
               {active==="secretary"&&user.isSecretary&&<SecretaryView/>}
+              {/* Squad check coach view rendered inline on dashboard */}
             </main>
             <BottomNav active={active} setActive={setActive} isSecretary={user.isSecretary}/>
           </div>
