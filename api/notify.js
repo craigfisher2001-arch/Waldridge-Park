@@ -15,17 +15,33 @@ export default async function handler(req, res) {
       return res.status(200).json({ message: "Ignored" });
     }
 
+    // Look up coach name from profiles table using submitted_by UUID
+    let coachName = "A coach";
+    if (record.submitted_by) {
+      const profileRes = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/profiles?id=eq.${record.submitted_by}&select=name`,
+        {
+          headers: {
+            "apikey": process.env.SUPABASE_SERVICE_KEY,
+            "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+          }
+        }
+      );
+      if (profileRes.ok) {
+        const profiles = await profileRes.json();
+        if (profiles.length > 0) coachName = profiles[0].name;
+      }
+    }
+
     let subject = "";
     let message = "";
 
     if (table === "registrations") {
-      const submittedBy = record.submitted_by_name || "A coach";
       subject = "WPJFC — New Player Registration Submitted";
-      message = `A new registration has been submitted by ${submittedBy}. Log in to review it at https://waldridge-park.vercel.app`;
+      message = `A new registration has been submitted by ${coachName}. Log in to review it at https://waldridge-park.vercel.app`;
     } else if (table === "kit_orders") {
-      const submittedBy = record.submitted_by_name || "A coach";
       subject = "WPJFC — New Kit Order Submitted";
-      message = `A new kit order has been submitted by ${submittedBy}. Log in to review it at https://waldridge-park.vercel.app`;
+      message = `A new kit order has been submitted by ${coachName}. Log in to review it at https://waldridge-park.vercel.app`;
     } else {
       return res.status(200).json({ message: "Ignored" });
     }
