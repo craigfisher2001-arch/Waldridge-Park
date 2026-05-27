@@ -2,36 +2,51 @@
 // Vercel serverless function — receives Supabase webhook and sends notification email
 
 export default async function handler(req, res) {
-  // Only accept POST requests
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { type, table, record } = req.body;
+    const body = req.body;
+    console.log("Webhook body:", JSON.stringify(body));
 
-    // Only handle INSERT events
+    const { type, table, record } = body;
+    console.log("type:", type, "table:", table);
+    console.log("record:", JSON.stringify(record));
+
     if (type !== "INSERT") {
       return res.status(200).json({ message: "Ignored" });
     }
 
-    // Look up coach name from profiles table using submitted_by UUID
+    // Look up coach name
     let coachName = "A coach";
-    if (record.submitted_by) {
-      const profileRes = await fetch(
-        `${process.env.SUPABASE_URL}/rest/v1/profiles?id=eq.${record.submitted_by}&select=name`,
-        {
-          headers: {
-            "apikey": process.env.SUPABASE_SERVICE_KEY,
-            "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
-          }
+    const submittedBy = record?.submitted_by;
+    console.log("submitted_by:", submittedBy);
+
+    if (submittedBy) {
+      const url = `${process.env.SUPABASE_URL}/rest/v1/profiles?id=eq.${submittedBy}&select=name`;
+      console.log("Fetching profile from:", url);
+
+      const profileRes = await fetch(url, {
+        headers: {
+          "apikey": process.env.SUPABASE_SERVICE_KEY,
+          "Authorization": `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
         }
-      );
-      if (profileRes.ok) {
-        const profiles = await profileRes.json();
+      });
+
+      console.log("Profile response status:", profileRes.status);
+      const profileText = await profileRes.text();
+      console.log("Profile response body:", profileText);
+
+      try {
+        const profiles = JSON.parse(profileText);
         if (profiles.length > 0) coachName = profiles[0].name;
+      } catch(e) {
+        console.error("Profile parse error:", e.message);
       }
     }
+
+    console.log("Coach name resolved to:", coachName);
 
     let subject = "";
     let message = "";
@@ -43,10 +58,10 @@ export default async function handler(req, res) {
       subject = "WPJFC — New Kit Order Submitted";
       message = `A new kit order has been submitted by ${coachName}. Log in to review it at https://waldridge-park.vercel.app`;
     } else {
+      console.log("Unrecognised table:", table);
       return res.status(200).json({ message: "Ignored" });
     }
 
-    // Send email via Resend
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -67,10 +82,11 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Failed to send email" });
     }
 
+    console.log("Email sent successfully");
     return res.status(200).json({ message: "Notification sent" });
 
   } catch (err) {
-    console.error("Notify error:", err);
+    console.error("Notify error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 }
