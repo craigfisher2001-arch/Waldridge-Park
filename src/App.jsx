@@ -1508,8 +1508,13 @@ function SquadCheckSecretaryView({setActive}) {
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, {type:"array"});
+      console.log("Sheet names:", wb.SheetNames);
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, {defval:""});
+      console.log("Total rows:", rows.length);
+      console.log("First row keys:", rows.length>0 ? Object.keys(rows[0]) : "none");
+      console.log("First row sample:", rows.length>0 ? JSON.stringify(rows[0]) : "none");
+      console.log("Row 5 sample:", rows.length>5 ? JSON.stringify(rows[5]) : "none");
 
       // Parse players — filter out Cancelled, map columns
       const players = rows
