@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase client ────────────────────────────────────────────
 const SUPABASE_URL = "https://ouerpsdkpzsojjqzfezq.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91ZXJwc2RrcHpzb2pqcXpmZXpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxMDU2OTAsImV4cCI6MjA5NDY4MTY5MH0.AoYkAJFzAyvmgSCzdHiBTI7Qw4c3d53Yga_-CyM8m9c";
+const SUPABASE_KEY = "YOUR_LEGACY_ANON_KEY_HERE";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── Season helper (June–May rule) ─────────────────────────────
@@ -25,7 +25,7 @@ function fmtDate(str) {
 
 // ── Static reference data ──────────────────────────────────────
 const TEAMS = ["Superstars","Fenwick","Ingram","Bowmont","Hawkhill","Portland",
-  "Glanton","Longburn","Hauxley","Grasmere","Aberwick","Lions","Dunstan",
+  "Ashgrove","Glanton","Longburn","Hauxley","Grasmere","Aberwick","Lions","Dunstan",
   "Auckland","Netherton","Lomond","Lumley","Firsts","Reserves"];
 const AGE_GROUPS = ["U7s","U8s","U9s","U10s","U11s","U12s","U13s","U14s",
   "U15s","U16s","U17s","U18s","Adults","Superstars"];
