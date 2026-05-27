@@ -219,6 +219,8 @@ function LoginScreen({onLogin}) {
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const doLogin = async () => {
     setErr(""); setLoading(true);
@@ -232,6 +234,16 @@ function LoginScreen({onLogin}) {
     onLogin({id:data.user.id, name:profile.name, role:profile.role,
       isSecretary:profile.is_secretary, teams:profile.teams||[]});
     setLoading(false);
+  };
+
+  const doReset = async () => {
+    if (!email) { setErr("Please enter your email address first, then tap Forgot Password."); return; }
+    setErr(""); setResetting(true);
+    const {error} = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: "https://waldridge-park.vercel.app",
+    });
+    if (error) { setErr(error.message); setResetting(false); return; }
+    setResetSent(true); setResetting(false);
   };
 
   return (
@@ -251,18 +263,40 @@ function LoginScreen({onLogin}) {
         </div>
         <div style={card}>
           <ErrBanner msg={err}/>
-          <F label="Email Address">
-            <input style={inp} type="email" value={email} onChange={e=>setEmail(e.target.value)}
-              placeholder="you@wpjfc.co.uk" onKeyDown={e=>e.key==="Enter"&&doLogin()}/>
-          </F>
-          <F label="Password">
-            <input style={inp} type="password" value={pw} onChange={e=>setPw(e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&doLogin()}/>
-          </F>
-          <button style={{...btn, width:"100%", padding:15, fontSize:16, opacity:loading?0.6:1}}
-            onClick={doLogin} disabled={loading}>
-            {loading?"Signing in…":"Sign In"}
-          </button>
+          {resetSent?(
+            <div style={{textAlign:"center", padding:"12px 0"}}>
+              <div style={{fontSize:34, marginBottom:12}}>📧</div>
+              <div style={{fontWeight:700, fontSize:16, fontFamily:"'DM Sans',sans-serif", marginBottom:8}}>
+                Password reset email sent</div>
+              <div style={{fontSize:13, color:C.muted, fontFamily:"'DM Sans',sans-serif", lineHeight:1.6}}>
+                Check your inbox for a reset link. Once you've reset your password, return here to sign in.</div>
+              <button style={{...btn, marginTop:18, width:"100%"}} onClick={()=>setResetSent(false)}>
+                Back to Sign In
+              </button>
+            </div>
+          ):(
+            <>
+              <F label="Email Address">
+                <input style={inp} type="email" value={email} onChange={e=>setEmail(e.target.value)}
+                  placeholder="you@wpjfc.co.uk" onKeyDown={e=>e.key==="Enter"&&doLogin()}/>
+              </F>
+              <F label="Password">
+                <input style={inp} type="password" value={pw} onChange={e=>setPw(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&doLogin()}/>
+              </F>
+              <button style={{...btn, width:"100%", padding:15, fontSize:16, opacity:loading?0.6:1}}
+                onClick={doLogin} disabled={loading}>
+                {loading?"Signing in…":"Sign In"}
+              </button>
+              <button onClick={doReset} disabled={resetting}
+                style={{background:"none", border:"none", color:C.muted, cursor:"pointer",
+                  width:"100%", textAlign:"center", marginTop:14, fontSize:13,
+                  fontFamily:"'DM Sans',sans-serif", padding:0,
+                  opacity:resetting?0.6:1}}>
+                {resetting?"Sending reset email…":"Forgot your password?"}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1774,31 +1808,41 @@ function SquadCheckCoachView({user, setActive}) {
         </div>
       </div>
 
-      {myPlayers.map(p=>(
-        <div key={p.id} style={{background:C.input, borderRadius:10, padding:12, marginBottom:8,
-          border:`1px solid ${responses[p.id]==="confirmed"?C.success:responses[p.id]==="left"?C.danger:C.border}`}}>
-          <div style={{fontWeight:700, fontSize:14, fontFamily:"'DM Sans',sans-serif", marginBottom:2}}>
-            {p.first_name} {p.surname}</div>
-          <div style={{fontSize:11, color:C.muted, fontFamily:"'DM Sans',sans-serif", marginBottom:10}}>
-            {p.team} · {p.age_group} · DOB: {fmtDate(p.dob)}</div>
-          <div style={{display:"flex", gap:8}}>
-            <button onClick={()=>setResponse(p.id, p.team, "confirmed")}
-              style={{flex:1, padding:"8px 0", borderRadius:8, border:`1px solid ${C.success}`,
-                background:responses[p.id]==="confirmed"?"rgba(22,163,74,0.2)":"transparent",
-                color:C.success, fontFamily:"'DM Sans',sans-serif", fontSize:13,
-                fontWeight:700, cursor:"pointer"}}>
-              ✓ Still Here
-            </button>
-            <button onClick={()=>setResponse(p.id, p.team, "left")}
-              style={{flex:1, padding:"8px 0", borderRadius:8, border:`1px solid ${C.danger}`,
-                background:responses[p.id]==="left"?"rgba(220,38,38,0.2)":"transparent",
-                color:C.danger, fontFamily:"'DM Sans',sans-serif", fontSize:13,
-                fontWeight:700, cursor:"pointer"}}>
-              ✕ Has Left
-            </button>
+      {/* Group players by team */}
+      {user.teams.map(team => {
+        const teamPlayers = myPlayers.filter(p => p.team === team);
+        if (teamPlayers.length === 0) return null;
+        return (
+          <div key={team}>
+            <div style={{...secHead, marginTop:16}}>{team}</div>
+            {teamPlayers.map(p=>(
+              <div key={p.id} style={{background:C.input, borderRadius:10, padding:12, marginBottom:8,
+                border:`1px solid ${responses[p.id]==="confirmed"?C.success:responses[p.id]==="left"?C.danger:C.border}`}}>
+                <div style={{fontWeight:700, fontSize:14, fontFamily:"'DM Sans',sans-serif", marginBottom:2}}>
+                  {p.first_name} {p.surname}</div>
+                <div style={{fontSize:11, color:C.muted, fontFamily:"'DM Sans',sans-serif", marginBottom:10}}>
+                  {p.age_group} · DOB: {fmtDate(p.dob)}</div>
+                <div style={{display:"flex", gap:8}}>
+                  <button onClick={()=>setResponse(p.id, p.team, "confirmed")}
+                    style={{flex:1, padding:"8px 0", borderRadius:8, border:`1px solid ${C.success}`,
+                      background:responses[p.id]==="confirmed"?"rgba(22,163,74,0.2)":"transparent",
+                      color:C.success, fontFamily:"'DM Sans',sans-serif", fontSize:13,
+                      fontWeight:700, cursor:"pointer"}}>
+                    ✓ Still Here
+                  </button>
+                  <button onClick={()=>setResponse(p.id, p.team, "left")}
+                    style={{flex:1, padding:"8px 0", borderRadius:8, border:`1px solid ${C.danger}`,
+                      background:responses[p.id]==="left"?"rgba(220,38,38,0.2)":"transparent",
+                      color:C.danger, fontFamily:"'DM Sans',sans-serif", fontSize:13,
+                      fontWeight:700, cursor:"pointer"}}>
+                    ✕ Has Left
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       <div style={{marginTop:14, padding:"12px 14px", background:"rgba(30,79,216,0.1)",
         border:`1px solid ${C.royal}`, borderRadius:8, marginBottom:14,
