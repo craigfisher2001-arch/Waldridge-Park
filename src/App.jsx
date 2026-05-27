@@ -1508,26 +1508,61 @@ function SquadCheckSecretaryView({setActive}) {
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, {type:"array"});
-      console.log("Sheet names:", wb.SheetNames);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, {defval:""});
-      console.log("Total rows:", rows.length);
-      console.log("First row keys:", rows.length>0 ? Object.keys(rows[0]) : "none");
-      console.log("First row sample:", rows.length>0 ? JSON.stringify(rows[0]) : "none");
-      console.log("Row 5 sample:", rows.length>5 ? JSON.stringify(rows[5]) : "none");
 
-      // Parse players — filter out Cancelled, map columns
-      const players = rows
-        .filter(r => (r["Registration status"]||"").toLowerCase() !== "cancelled")
-        .map(r => ({
-          team: extractTeamName(r["Team"]||""),
-          first_name: (r["First names"]||"").trim(),
-          surname: (r["Surname"]||"").trim(),
-          dob: excelDateToISO(r["Date of birth"]),
-          age_group: r["Age Group"] ? `U${r["Age Group"]}s` : "",
-          fa_status: r["Registration status"]||"",
+      // The FA spreadsheet has 5 preamble rows before the actual data headers.
+      // Read as array of arrays to find the real header row, then parse from there.
+      const allRows = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+
+      // Find the row index where "First names" appears — that's the real header row
+      let headerRowIdx = -1;
+      for (let i = 0; i < Math.min(allRows.length, 20); i++) {
+        if (allRows[i].some(cell => String(cell).toLowerCase().includes("first names") ||
+            String(cell).toLowerCase() === "first name")) {
+          headerRowIdx = i;
+          break;
+        }
+      }
+
+      if (headerRowIdx === -1) {
+        setErr("Could not find player data headers in this file. Please check it is the FA Club Player Report.");
+        setUploading(false); return;
+      }
+
+      const headers = allRows[headerRowIdx].map(h => String(h).trim());
+      const dataRows = allRows.slice(headerRowIdx + 1);
+
+      // Map column names to indices
+      const col = (name) => headers.findIndex(h =>
+        h.toLowerCase().includes(name.toLowerCase())
+      );
+
+      const firstNameCol  = col("first name");
+      const surnameCol    = col("surname");
+      const dobCol        = col("date of birth");
+      const ageGroupCol   = col("age group");
+      const teamCol       = col("team");
+      const statusCol     = col("registration status");
+
+      console.log("Header row:", headerRowIdx, "Headers:", headers);
+      console.log("Col indices:", {firstNameCol, surnameCol, dobCol, ageGroupCol, teamCol, statusCol});
+
+      const players = dataRows
+        .filter(row => {
+          const status = String(row[statusCol]||"").toLowerCase();
+          return status !== "cancelled" && row[firstNameCol] && row[surnameCol];
+        })
+        .map(row => ({
+          team: extractTeamName(String(row[teamCol]||"")),
+          first_name: String(row[firstNameCol]||"").trim(),
+          surname: String(row[surnameCol]||"").trim(),
+          dob: excelDateToISO(row[dobCol]),
+          age_group: row[ageGroupCol] ? `U${row[ageGroupCol]}s` : "",
+          fa_status: String(row[statusCol]||""),
         }))
         .filter(p => p.team && p.first_name && p.surname);
+
+      console.log("Parsed players:", players.length, players.slice(0,3));
 
       if (players.length === 0) {
         setErr("No valid players found in the file. Please check the format.");
