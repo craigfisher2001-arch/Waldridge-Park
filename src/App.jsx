@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
+import * as XLSX from "xlsx";
 
 // ── Supabase client ────────────────────────────────────────────
 const SUPABASE_URL = "https://ouerpsdkpzsojjqzfezq.supabase.co";
@@ -1505,8 +1506,6 @@ function SquadCheckSecretaryView({setActive}) {
     const file = e.target.files[0]; if (!file) return;
     setErr(""); setUploading(true);
     try {
-      // Read xlsx using SheetJS
-      const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.mjs");
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, {type:"array"});
       const ws = wb.Sheets[wb.SheetNames[0]];
