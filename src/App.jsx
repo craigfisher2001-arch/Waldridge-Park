@@ -25,7 +25,7 @@ function fmtDate(str) {
 }
 
 // ── Static reference data ──────────────────────────────────────
-const TEAMS = ["Superstars","Fenwick","Ingram","Bowmont","Hawkhill","Portland",
+const TEAMS = ["Alwinton","Superstars","Fenwick","Ingram","Bowmont","Hawkhill","Portland",
   "Ashgrove","Glanton","Longburn","Hauxley","Grasmere","Aberwick","Lions","Dunstan",
   "Auckland","Netherton","Lomond","Lumley","Firsts","Reserves"];
 const AGE_GROUPS = ["U7s","U8s","U9s","U10s","U11s","U12s","U13s","U14s",
